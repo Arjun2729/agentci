@@ -1,0 +1,30 @@
+node_modules
+/dist
+/.agentci
+.DS_Store
+*.log
+
+# Python
+__pycache__
+*.pyc
+*.egg-info
+.pytest_cache
+python/.pytest_cache
+
+# Demo artifacts
+workspace/
+.env.backup
+
+# OS
+Thumbs.db
+
+# IDE / tools
+.vscode/
+.idea/
+.claude/
+*.swp
+*.swo
+
+# Package lock (keep package-lock.json but ignore others)
+yarn.lock
+pnpm-lock.yaml
