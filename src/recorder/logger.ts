@@ -6,10 +6,6 @@
 
 const ENABLED = !!process.env.AGENTCI_DEBUG;
 
-function timestamp(): string {
-  return new Date().toISOString();
-}
-
 function write(level: string, component: string, message: string, extra?: Record<string, unknown>): void {
   if (!ENABLED) return;
   const parts = [`[agentci ${level}] [${component}]`, message];

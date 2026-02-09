@@ -7,6 +7,7 @@ export interface RecorderContext {
   runDir: string;
   workspaceRoot: string;
   config: PolicyConfig;
+  enforce: boolean;
   writer: TraceWriter;
   state: RecorderState;
   originals: {

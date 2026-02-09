@@ -1,0 +1,26 @@
+name: AgentCI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  agentci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npx agentci init
+      - name: Record agent run
+        run: npx agentci record -- node my_agent.js
+      - name: Summarize latest run
+        run: |
+          RUN_ID=$(ls -t .agentci/runs | head -n1)
+          npx agentci summarize .agentci/runs/$RUN_ID/trace.jsonl
+      - name: Diff against baseline
+        run: |
+          RUN_ID=$(ls -t .agentci/runs | head -n1)
+          npx agentci diff .agentci/baseline.json .agentci/runs/$RUN_ID/signature.json --format json

@@ -1,19 +1,21 @@
 #!/usr/bin/env node
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
 import { Command } from 'commander';
 import chalk from 'chalk';
+import yaml from 'yaml';
 import { defaultConfig, loadConfig, saveConfig } from '../core/policy/config';
 import { summarizeTrace, writeSignature } from '../core/signature/summarize';
-import { EffectSignature } from '../core/types';
+import { EffectSignature, PolicyConfig } from '../core/types';
 import { diffSignatures } from '../core/diff/diff';
 import { evaluatePolicy } from '../core/policy/evaluate';
 import { formatFinding, summarizeFindings } from '../core/diff/explain';
 import { readJsonl } from '../core/trace/read_jsonl';
 import { generateReportHtml } from '../report/html';
 import { serveReports } from '../report/serve';
-import { writeTraceChecksum, verifyTraceIntegrity } from '../core/integrity';
+import { writeTraceChecksum, verifyTraceIntegrity, writeSecret, loadSecret } from '../core/integrity';
 import { validateEffectSignature } from '../core/schema';
 import { serveDashboard } from '../dashboard/server';
 
@@ -27,6 +29,14 @@ program.name('agentci').version(packageJson.version).enablePositionalOptions();
 
 function resolveConfigPath(cwd: string): string {
   return path.join(cwd, '.agentci', 'config.yaml');
+}
+
+function resolveBaselinePath(cwd: string): string {
+  return path.join(cwd, '.agentci', 'baseline.json');
+}
+
+function resolveBaselineMetaPath(cwd: string): string {
+  return path.join(cwd, '.agentci', 'baseline.meta.json');
 }
 
 function getPassThroughArgs(): string[] {
@@ -51,29 +61,176 @@ function resolveSignatureOutput(runDir: string): string {
   return path.join(runDir, 'signature.json');
 }
 
+function sha256File(filePath: string): string {
+  const content = fs.readFileSync(filePath);
+  const hash = crypto.createHash('sha256');
+  hash.update(content);
+  return hash.digest('hex');
+}
+
+function writeJson(filePath: string, payload: unknown): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
+}
+
+interface PolicyPack {
+  name: string;
+  description?: string;
+  policy?: Partial<PolicyConfig['policy']>;
+  normalization?: Partial<PolicyConfig['normalization']>;
+}
+
+function resolvePackPath(nameOrPath: string): string {
+  if (nameOrPath.endsWith('.yaml') || nameOrPath.endsWith('.yml') || nameOrPath.includes(path.sep)) {
+    return path.resolve(process.cwd(), nameOrPath);
+  }
+  return path.resolve(__dirname, '..', '..', 'policy-packs', `${nameOrPath}.yaml`);
+}
+
+function loadPolicyPack(nameOrPath: string): PolicyPack {
+  const packPath = resolvePackPath(nameOrPath);
+  if (!fs.existsSync(packPath)) {
+    throw new Error(`Policy pack not found: ${packPath}`);
+  }
+  const raw = fs.readFileSync(packPath, 'utf8');
+  const parsed = yaml.parse(raw);
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error(`Invalid policy pack at ${packPath}`);
+  }
+  return parsed as PolicyPack;
+}
+
+function mergePack(base: PolicyConfig, pack: PolicyPack): PolicyConfig {
+  const merged: PolicyConfig = { ...base };
+  if (pack.normalization) {
+    merged.normalization = {
+      ...base.normalization,
+      ...pack.normalization,
+      filesystem: {
+        ...base.normalization?.filesystem,
+        ...(pack.normalization?.filesystem ?? {}),
+      },
+      network: {
+        ...base.normalization?.network,
+        ...(pack.normalization?.network ?? {}),
+      },
+      exec: {
+        ...base.normalization?.exec,
+        ...(pack.normalization?.exec ?? {}),
+      },
+    };
+  }
+  if (pack.policy) {
+    merged.policy = {
+      ...base.policy,
+      ...pack.policy,
+      filesystem: {
+        ...base.policy?.filesystem,
+        ...(pack.policy?.filesystem ?? {}),
+      },
+      network: {
+        ...base.policy?.network,
+        ...(pack.policy?.network ?? {}),
+      },
+      exec: {
+        ...base.policy?.exec,
+        ...(pack.policy?.exec ?? {}),
+      },
+      sensitive: {
+        ...base.policy?.sensitive,
+        ...(pack.policy?.sensitive ?? {}),
+      },
+    };
+  }
+  return merged;
+}
+
+function parseFormat(format?: string): 'text' | 'json' {
+  if (format && format.toLowerCase() === 'json') return 'json';
+  return 'text';
+}
+
+function driftHint(category: string): string {
+  switch (category) {
+    case 'fs_writes':
+      return 'New files modified or created.';
+    case 'fs_deletes':
+      return 'New files deleted.';
+    case 'fs_reads_external':
+      return 'New external file reads.';
+    case 'net_hosts':
+      return 'New outbound network destinations.';
+    case 'net_etld_plus_1':
+      return 'New top-level domains contacted.';
+    case 'exec_commands':
+      return 'New subprocesses executed.';
+    case 'exec_argv':
+      return 'New subprocess argument shapes.';
+    case 'sensitive_keys_accessed':
+      return 'New sensitive env keys accessed.';
+    default:
+      return '';
+  }
+}
+
 function loadSignature(pathInput: string): EffectSignature {
   const raw = JSON.parse(fs.readFileSync(pathInput, 'utf8'));
-  return validateEffectSignature(raw);
+  if (raw?.meta && !raw.meta.normalization_rules_version) {
+    raw.meta.normalization_rules_version = 'legacy';
+  }
+  const sig = validateEffectSignature(raw);
+  if (sig.meta.signature_version !== '1.0') {
+    // eslint-disable-next-line no-console
+    console.error(
+      chalk.yellow(
+        `Warning: signature version '${sig.meta.signature_version}' may not be compatible with this CLI (expects '1.0').`,
+      ),
+    );
+  }
+  return sig;
+}
+
+function initProject(): void {
+  const cwd = process.cwd();
+  const configPath = resolveConfigPath(cwd);
+  const config = defaultConfig('.');
+  saveConfig(configPath, config);
+  // eslint-disable-next-line no-console
+  console.log(chalk.green(`Wrote config to ${configPath}`));
+
+  const agentciDir = path.join(cwd, '.agentci');
+  fs.mkdirSync(agentciDir, { recursive: true });
+  const secretPath = path.join(agentciDir, 'secret');
+  if (!fs.existsSync(secretPath)) {
+    writeSecret(agentciDir);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Generated signing secret at ${secretPath}`));
+    // eslint-disable-next-line no-console
+    console.log(chalk.yellow('Add .agentci/secret to .gitignore — never commit this file.'));
+  }
 }
 
 program
-  .command('adopt')
-  .description('Scan repo and write .agentci/config.yaml')
+  .command('init')
+  .description('Initialize .agentci config and baseline layout')
   .action(() => {
-    const cwd = process.cwd();
-    const configPath = resolveConfigPath(cwd);
-    const config = defaultConfig('.');
-    saveConfig(configPath, config);
-    // eslint-disable-next-line no-console
-    console.log(chalk.green(`Wrote config to ${configPath}`));
+    initProject();
+  });
+
+program
+  .command('adopt')
+  .description('Write .agentci/config.yaml (alias of init)')
+  .action(() => {
+    initProject();
   });
 
 program
   .command('record')
   .description('Run a command with the recorder enabled')
+  .option('--enforce', 'Fail fast on policy violations')
   .allowUnknownOption(true)
   .passThroughOptions()
-  .action(() => {
+  .action((options: { enforce?: boolean }) => {
     const cmdArgs = getPassThroughArgs();
     if (!cmdArgs.length) {
       // eslint-disable-next-line no-console
@@ -82,9 +239,9 @@ program
     }
 
     const cwd = process.cwd();
-    const runId = `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+    const runId = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
     const runDir = path.join(cwd, '.agentci', 'runs', runId);
-    fs.mkdirSync(runDir, { recursive: true });
+    fs.mkdirSync(runDir, { recursive: true, mode: 0o700 });
 
     const configPath = resolveConfigPath(cwd);
     const env: NodeJS.ProcessEnv = {
@@ -94,12 +251,15 @@ program
       AGENTCI_WORKSPACE_ROOT: cwd,
       AGENTCI_VERSION: packageJson.version
     };
+    if (options.enforce) {
+      env.AGENTCI_ENFORCE = '1';
+    }
     if (fs.existsSync(configPath)) {
       env.AGENTCI_CONFIG_PATH = configPath;
     }
 
     const registerPath = path.resolve(__dirname, '..', 'recorder', 'register.js');
-    const registerArg = registerPath.includes(' ') ? `\"${registerPath}\"` : registerPath;
+    const registerArg = registerPath.includes(' ') ? `"${registerPath}"` : registerPath;
     const nodeOptions = `${process.env.NODE_OPTIONS || ''} --require ${registerArg}`.trim();
 
     const child = spawn(cmdArgs[0], cmdArgs.slice(1), {
@@ -133,9 +293,194 @@ program
     console.log(chalk.green(`Wrote signature to ${outPath}`));
 
     const runId = process.env.AGENTCI_RUN_ID || path.basename(runDir);
-    const checksumPath = writeTraceChecksum(tracePath, runId);
+    const secret = loadSecret(process.cwd(), runId);
+    const checksumPath = writeTraceChecksum(tracePath, runId, secret);
     // eslint-disable-next-line no-console
     console.log(chalk.green(`Wrote integrity checksum to ${checksumPath}`));
+  });
+
+const baselineCmd = program.command('baseline').description('Baseline lifecycle commands');
+
+baselineCmd
+  .command('create')
+  .description('Create or overwrite baseline.json from a trace or run directory')
+  .argument('<trace_or_run_dir>')
+  .option('--config <path>', 'Path to config.yaml')
+  .option('--reason <text>', 'Reason for baseline update')
+  .option('--by <name>', 'Name of the person creating the baseline')
+  .option('--pr <link>', 'PR or change link')
+  .action((input: string, options: { config?: string; reason?: string; by?: string; pr?: string }) => {
+    const { tracePath, runDir } = resolveTraceInput(input);
+    const configPath = options.config || resolveConfigPath(process.cwd());
+    const config = loadConfig(fs.existsSync(configPath) ? configPath : undefined, process.cwd());
+    const signature = summarizeTrace(tracePath, config, packageJson.version);
+    const runSigPath = resolveSignatureOutput(runDir);
+    writeSignature(runSigPath, signature);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Wrote signature to ${runSigPath}`));
+
+    const baselinePath = resolveBaselinePath(process.cwd());
+    writeSignature(baselinePath, signature);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Updated baseline at ${baselinePath}`));
+
+    const metaPath = resolveBaselineMetaPath(process.cwd());
+    const digest = sha256File(baselinePath);
+    const meta = {
+      status: 'created',
+      created_at: new Date().toISOString(),
+      created_by: options.by || process.env.USER || 'unknown',
+      reason: options.reason || null,
+      pr: options.pr || null,
+      policy_version: config.version,
+      signature_version: signature.meta.signature_version,
+      normalization_rules_version: signature.meta.normalization_rules_version,
+      baseline_digest: digest,
+    };
+    writeJson(metaPath, meta);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Wrote baseline metadata to ${metaPath}`));
+  });
+
+baselineCmd
+  .command('approve')
+  .description('Approve the current baseline with metadata')
+  .option('--by <name>', 'Approver name')
+  .option('--reason <text>', 'Approval reason')
+  .option('--pr <link>', 'PR or change link')
+  .action((options: { by?: string; reason?: string; pr?: string }) => {
+    const baselinePath = resolveBaselinePath(process.cwd());
+    if (!fs.existsSync(baselinePath)) {
+      // eslint-disable-next-line no-console
+      console.error(chalk.red(`Baseline not found at ${baselinePath}`));
+      process.exit(1);
+    }
+    const metaPath = resolveBaselineMetaPath(process.cwd());
+    const existing = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : {};
+    const digest = sha256File(baselinePath);
+    const meta = {
+      ...existing,
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: options.by || process.env.USER || 'unknown',
+      approval_reason: options.reason || null,
+      pr: options.pr || existing.pr || null,
+      baseline_digest: digest,
+    };
+    writeJson(metaPath, meta);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Updated baseline metadata at ${metaPath}`));
+  });
+
+baselineCmd
+  .command('status')
+  .description('Show baseline metadata and digest status')
+  .option('--format <format>', 'Output format: text|json', 'text')
+  .action((options: { format?: string }) => {
+    const baselinePath = resolveBaselinePath(process.cwd());
+    const metaPath = resolveBaselineMetaPath(process.cwd());
+    const format = parseFormat(options.format);
+
+    if (!fs.existsSync(baselinePath)) {
+      const payload = { exists: false };
+      if (format === 'json') {
+        // eslint-disable-next-line no-console
+        console.log(JSON.stringify(payload, null, 2));
+        process.exit(1);
+      }
+      // eslint-disable-next-line no-console
+      console.log(chalk.red('Baseline not found.'));
+      process.exit(1);
+    }
+
+    const digest = sha256File(baselinePath);
+    const meta = fs.existsSync(metaPath) ? JSON.parse(fs.readFileSync(metaPath, 'utf8')) : {};
+    const matches = meta.baseline_digest ? meta.baseline_digest === digest : null;
+    const payload = { exists: true, baseline_digest: digest, metadata: meta, digest_matches_metadata: matches };
+
+    if (format === 'json') {
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify(payload, null, 2));
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(chalk.bold('BASELINE STATUS'));
+    // eslint-disable-next-line no-console
+    console.log(`Digest: ${digest}`);
+    if (matches === true) {
+      console.log(chalk.green('Digest matches metadata.'));
+    } else if (matches === false) {
+      console.log(chalk.yellow('Digest does not match metadata (baseline changed?).'));
+    } else {
+      console.log(chalk.gray('No metadata digest found.'));
+    }
+    if (Object.keys(meta).length) {
+      console.log(chalk.bold('\nMETADATA'));
+      Object.entries(meta).forEach(([key, value]) => {
+        console.log(`${key}: ${value}`);
+      });
+    }
+  });
+
+const policyCmd = program.command('policy').description('Policy pack helpers');
+
+policyCmd
+  .command('list')
+  .description('List available policy packs')
+  .action(() => {
+    const packsDir = path.resolve(__dirname, '..', '..', 'policy-packs');
+    if (!fs.existsSync(packsDir)) {
+      // eslint-disable-next-line no-console
+      console.log(chalk.gray('No policy packs found.'));
+      return;
+    }
+    const files = fs.readdirSync(packsDir).filter((file) => file.endsWith('.yaml') || file.endsWith('.yml'));
+    if (!files.length) {
+      // eslint-disable-next-line no-console
+      console.log(chalk.gray('No policy packs found.'));
+      return;
+    }
+    files.forEach((file) => {
+      try {
+        const pack = loadPolicyPack(file.replace(/\\.(yaml|yml)$/i, ''));
+        // eslint-disable-next-line no-console
+        console.log(`${pack.name}${pack.description ? ` — ${pack.description}` : ''}`);
+      } catch {
+        // eslint-disable-next-line no-console
+        console.log(file);
+      }
+    });
+  });
+
+policyCmd
+  .command('show')
+  .description('Show a policy pack')
+  .argument('<pack>')
+  .action((packName: string) => {
+    const packPath = resolvePackPath(packName);
+    if (!fs.existsSync(packPath)) {
+      // eslint-disable-next-line no-console
+      console.error(chalk.red(`Policy pack not found: ${packName}`));
+      process.exit(1);
+    }
+    // eslint-disable-next-line no-console
+    console.log(fs.readFileSync(packPath, 'utf8'));
+  });
+
+policyCmd
+  .command('apply')
+  .description('Apply a policy pack to .agentci/config.yaml')
+  .argument('<pack>')
+  .option('--config <path>', 'Path to config.yaml')
+  .action((packName: string, options: { config?: string }) => {
+    const configPath = options.config || resolveConfigPath(process.cwd());
+    const base = loadConfig(fs.existsSync(configPath) ? configPath : undefined, process.cwd());
+    const pack = loadPolicyPack(packName);
+    const merged = mergePack(base, pack);
+    saveConfig(configPath, merged);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Applied policy pack '${pack.name}' to ${configPath}`));
   });
 
 program
@@ -144,7 +489,8 @@ program
   .argument('<baseline_signature>')
   .argument('<current_signature>')
   .option('--config <path>', 'Path to config.yaml')
-  .action((baselinePath: string, currentPath: string, options: { config?: string }) => {
+  .option('--format <format>', 'Output format: text|json', 'text')
+  .action((baselinePath: string, currentPath: string, options: { config?: string; format?: string }) => {
     const baseline = loadSignature(baselinePath);
     const current = loadSignature(currentPath);
     const configPath = options.config || resolveConfigPath(process.cwd());
@@ -153,6 +499,25 @@ program
     const diff = diffSignatures(baseline, current);
     const findings = evaluatePolicy(current, config);
     const summary = summarizeFindings(findings);
+
+    const format = parseFormat(options.format);
+    if (format === 'json') {
+      const payload = {
+        summary,
+        findings,
+        drift: diff.drift,
+        context: {
+          platform: current.meta.platform,
+          adapter: current.meta.adapter,
+          node: current.meta.node_version,
+          normalization_rules_version: current.meta.normalization_rules_version,
+        },
+      };
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify(payload, null, 2));
+      if (summary.hasBlock) process.exit(1);
+      return;
+    }
 
     const summaryLabel = summary.hasBlock
       ? chalk.red('BLOCK')
@@ -179,7 +544,9 @@ program
       console.log(chalk.gray('No drift detected.'));
     } else {
       driftEntries.forEach(([key, values]) => {
-        console.log(chalk.cyan(`${key}:`));
+        const hint = driftHint(key);
+        const label = hint ? `${key} — ${hint}` : key;
+        console.log(chalk.cyan(`${label}:`));
         values.forEach((value: string) => console.log(`  - ${value}`));
       });
     }
@@ -189,6 +556,7 @@ program
     console.log(`Platform: ${current.meta.platform}`);
     console.log(`Adapter: ${current.meta.adapter}`);
     console.log(`Node: ${current.meta.node_version}`);
+    console.log(`Normalization: ${current.meta.normalization_rules_version}`);
 
     if (summary.hasBlock) {
       process.exit(1);
@@ -225,19 +593,165 @@ program
   });
 
 program
+  .command('attest')
+  .description('Generate an attestation for a signature + policy verdict')
+  .argument('<baseline_signature>')
+  .argument('<current_signature>')
+  .option('--config <path>', 'Path to config.yaml')
+  .option('--out <path>', 'Output attestation path')
+  .action((baselinePath: string, currentPath: string, options: { config?: string; out?: string }) => {
+    const baseline = fs.existsSync(baselinePath) ? loadSignature(baselinePath) : null;
+    const current = loadSignature(currentPath);
+    const configPath = options.config || resolveConfigPath(process.cwd());
+    const config = loadConfig(fs.existsSync(configPath) ? configPath : undefined, process.cwd());
+    const findings = evaluatePolicy(current, config);
+    const summary = summarizeFindings(findings);
+    const verdict = summary.hasBlock ? 'block' : summary.hasWarn ? 'warn' : 'pass';
+
+    const gitSha =
+      process.env.GIT_SHA ||
+      process.env.GITHUB_SHA ||
+      process.env.CI_COMMIT_SHA ||
+      process.env.BUILD_SOURCEVERSION ||
+      'unknown';
+
+    const payload = {
+      git_sha: gitSha,
+      ci_run_id: process.env.CI_RUN_ID || process.env.GITHUB_RUN_ID || 'unknown',
+      policy_version: config.version,
+      signature_version: current.meta.signature_version,
+      normalization_rules_version: current.meta.normalization_rules_version,
+      signature_digest: sha256File(currentPath),
+      baseline_digest: baseline ? sha256File(baselinePath) : null,
+      verdict,
+      generated_at: new Date().toISOString(),
+    };
+
+    const outPath = options.out ? options.out : path.join(path.dirname(currentPath), 'attestation.json');
+    writeJson(outPath, payload);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Wrote attestation to ${outPath}`));
+
+    if (summary.hasBlock) process.exit(1);
+  });
+
+program
+  .command('evaluate')
+  .description('Evaluate a signature against policy')
+  .argument('<signature>')
+  .option('--config <path>', 'Path to config.yaml')
+  .option('--format <format>', 'Output format: text|json', 'text')
+  .action((signaturePath: string, options: { config?: string; format?: string }) => {
+    const signature = loadSignature(signaturePath);
+    const configPath = options.config || resolveConfigPath(process.cwd());
+    const config = loadConfig(fs.existsSync(configPath) ? configPath : undefined, process.cwd());
+    const findings = evaluatePolicy(signature, config);
+    const summary = summarizeFindings(findings);
+    const format = parseFormat(options.format);
+
+    if (format === 'json') {
+      const payload = { summary, findings };
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify(payload, null, 2));
+      if (summary.hasBlock) process.exit(1);
+      return;
+    }
+
+    const summaryLabel = summary.hasBlock
+      ? chalk.red('BLOCK')
+      : summary.hasWarn
+        ? chalk.yellow('WARN')
+        : chalk.green('PASS');
+    // eslint-disable-next-line no-console
+    console.log(chalk.bold('SUMMARY'), summaryLabel);
+    if (findings.length) {
+      // eslint-disable-next-line no-console
+      console.log(chalk.bold('\nPOLICY VIOLATIONS'));
+      findings.forEach((finding) => {
+        const color = finding.severity === 'BLOCK' ? chalk.red : finding.severity === 'WARN' ? chalk.yellow : chalk.gray;
+        console.log(color(`- ${formatFinding(finding)}`));
+      });
+    }
+    if (summary.hasBlock) process.exit(1);
+  });
+
+program
   .command('verify')
   .description('Verify trace file integrity against its checksum')
   .argument('<trace_or_run_dir>')
-  .action((input: string) => {
+  .option('--signature <path>', 'Optional signature.json for attestation checks')
+  .option('--baseline <path>', 'Optional baseline.json for attestation checks')
+  .option('--attestation <path>', 'Optional attestation.json to validate')
+  .option('--config <path>', 'Optional config.yaml to verify policy version')
+  .option('--format <format>', 'Output format: text|json', 'text')
+  .action((input: string, options: { signature?: string; baseline?: string; attestation?: string; config?: string; format?: string }) => {
     const { tracePath, runDir } = resolveTraceInput(input);
     const runId = path.basename(runDir);
-    const result = verifyTraceIntegrity(tracePath, runId);
-    if (result.valid) {
+    const secret = loadSecret(process.cwd(), runId);
+    const result = verifyTraceIntegrity(tracePath, runId, secret);
+    const format = parseFormat(options.format);
+    const checks: Record<string, { valid: boolean; details: string }> = {
+      trace: result,
+    };
+
+    if (options.attestation) {
+      try {
+        const attestation = JSON.parse(fs.readFileSync(options.attestation, 'utf8'));
+        if (options.signature) {
+          const digest = sha256File(options.signature);
+          checks.signature = {
+            valid: digest === attestation.signature_digest,
+            details: digest === attestation.signature_digest ? 'Signature digest match' : 'Signature digest mismatch',
+          };
+        }
+        if (options.baseline) {
+          const digest = sha256File(options.baseline);
+          checks.baseline = {
+            valid: digest === attestation.baseline_digest,
+            details: digest === attestation.baseline_digest ? 'Baseline digest match' : 'Baseline digest mismatch',
+          };
+        }
+        if (options.signature) {
+          const signature = loadSignature(options.signature);
+          checks.policy = {
+            valid:
+              signature.meta.signature_version === attestation.signature_version &&
+              signature.meta.normalization_rules_version === attestation.normalization_rules_version,
+            details: 'Signature version/normalization match attestation',
+          };
+        }
+        const configPath = options.config || resolveConfigPath(process.cwd());
+        if (fs.existsSync(configPath) && attestation.policy_version !== undefined) {
+          const config = loadConfig(configPath, process.cwd());
+          checks.policy_version = {
+            valid: config.version === attestation.policy_version,
+            details: config.version === attestation.policy_version ? 'Policy version match' : 'Policy version mismatch',
+          };
+        }
+      } catch (err) {
+        checks.attestation = { valid: false, details: `Failed to load attestation: ${err}` };
+      }
+    }
+
+    const allValid = Object.values(checks).every((check) => check.valid);
+    if (format === 'json') {
+      // eslint-disable-next-line no-console
+      console.log(JSON.stringify({ valid: allValid, checks }, null, 2));
+      if (!allValid) process.exit(1);
+      return;
+    }
+
+    if (allValid) {
       // eslint-disable-next-line no-console
       console.log(chalk.green(`PASS: ${result.details}`));
     } else {
       // eslint-disable-next-line no-console
       console.log(chalk.red(`FAIL: ${result.details}`));
+      Object.entries(checks).forEach(([key, check]) => {
+        if (check.valid) return;
+        // eslint-disable-next-line no-console
+        console.log(chalk.red(`- ${key}: ${check.details}`));
+      });
       process.exit(1);
     }
   });
@@ -250,6 +764,10 @@ program
   .action((options: { dir: string; port: string }) => {
     const dir = path.resolve(process.cwd(), options.dir);
     const port = Number(options.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      console.error(chalk.red('Invalid port number. Must be 1-65535.'));
+      process.exit(1);
+    }
     serveReports(dir, port);
   });
 
@@ -261,6 +779,10 @@ program
   .action((options: { dir: string; port: string }) => {
     const dir = path.resolve(process.cwd(), options.dir);
     const port = Number(options.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      console.error(chalk.red('Invalid port number. Must be 1-65535.'));
+      process.exit(1);
+    }
     serveDashboard(dir, port);
   });
 

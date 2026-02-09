@@ -14,7 +14,7 @@ export function readJsonl(path: string): TraceEvent[] {
       if (parsed && typeof parsed === 'object' && parsed.type) {
         events.push(parsed);
       }
-    } catch (err) {
+    } catch {
       if (i === lines.length - 1) {
         // tolerate partial last line on crash
         break;

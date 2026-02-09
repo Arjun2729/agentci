@@ -6,6 +6,7 @@ import { EffectEventData, TraceEvent } from '../../core/types';
 import { resolvePathBestEffort } from '../canonicalize';
 import { expandTilde, matchPath } from '../../core/policy/match';
 import { logger } from '../logger';
+import { enforceEffect } from '../enforce';
 
 function now(): number {
   return Date.now();
@@ -28,22 +29,29 @@ function pathFromArg(arg: unknown): string | null {
   return null;
 }
 
-function shouldSkip(ctx: RecorderContext, resolvedPath: string): boolean {
-  const agentciOriginal = path.resolve(ctx.workspaceRoot, '.agentci');
-  if (resolvedPath.startsWith(agentciOriginal)) return true;
-  // Also check realpath to handle symlinks (e.g., /tmp -> /private/tmp on macOS)
+// Cache the .agentci realpath at patch-init time to avoid calling realpathSync on every hot-path.
+let agentciOriginalCache: string | null = null;
+let agentciRealCache: string | null = null;
+
+function initAgentciPaths(workspaceRoot: string): void {
+  agentciOriginalCache = path.resolve(workspaceRoot, '.agentci');
   try {
-    const agentciReal = fs.realpathSync.native(agentciOriginal);
-    return resolvedPath.startsWith(agentciReal);
+    agentciRealCache = fs.realpathSync.native(agentciOriginalCache);
   } catch {
-    return false;
+    agentciRealCache = null;
   }
+}
+
+function shouldSkip(resolvedPath: string): boolean {
+  if (agentciOriginalCache && resolvedPath.startsWith(agentciOriginalCache)) return true;
+  if (agentciRealCache && resolvedPath.startsWith(agentciRealCache)) return true;
+  return false;
 }
 
 function recordFs(ctx: RecorderContext, category: EffectEventData['category'], inputPath: string): void {
   try {
     const resolved = resolvePathBestEffort(inputPath, ctx.workspaceRoot);
-    if (shouldSkip(ctx, resolved.resolvedAbs)) return;
+    if (shouldSkip(resolved.resolvedAbs)) return;
     const data: EffectEventData = {
       category,
       kind: 'observed',
@@ -54,17 +62,18 @@ function recordFs(ctx: RecorderContext, category: EffectEventData['category'], i
       }
     };
     ctx.writer.write(buildEvent(ctx, data));
+    enforceEffect(ctx, data);
 
     if (category === 'fs_read') {
       const expanded = expandTilde(resolved.resolvedAbs);
       if (matchPath(ctx.config.policy.sensitive.block_file_globs, expanded)) {
-        ctx.writer.write(
-          buildEvent(ctx, {
-            category: 'sensitive_access',
-            kind: 'observed',
-            sensitive: { type: 'file_read', key_name: expanded }
-          })
-        );
+        const sensitiveEvent: EffectEventData = {
+          category: 'sensitive_access',
+          kind: 'observed',
+          sensitive: { type: 'file_read', key_name: expanded }
+        };
+        ctx.writer.write(buildEvent(ctx, sensitiveEvent));
+        enforceEffect(ctx, sensitiveEvent);
       }
     }
   } catch (err) {
@@ -73,6 +82,8 @@ function recordFs(ctx: RecorderContext, category: EffectEventData['category'], i
 }
 
 export function patchFs(ctx: RecorderContext): void {
+  initAgentciPaths(ctx.workspaceRoot);
+
   const original = {
     writeFile: fs.writeFile,
     writeFileSync: fs.writeFileSync,
@@ -87,7 +98,8 @@ export function patchFs(ctx: RecorderContext): void {
     rm: fs.rm,
     rmSync: fs.rmSync,
     rename: fs.rename,
-    renameSync: fs.renameSync
+    renameSync: fs.renameSync,
+    promises: fs.promises ? { ...fs.promises } : null
   };
 
   function wrapSync(
@@ -126,9 +138,16 @@ export function patchFs(ctx: RecorderContext): void {
 
       const result = fn.apply(fs, args);
       if (result && typeof result.then === 'function') {
-        result.then(() => {
-          if (target) recordFs(ctx, category, target);
-        }).catch(() => {});
+        // Record only on success; re-throw errors without swallowing
+        return result.then(
+          (value: unknown) => {
+            if (target) recordFs(ctx, category, target);
+            return value;
+          },
+          (err: unknown) => {
+            throw err;
+          },
+        );
       } else if (target) {
         recordFs(ctx, category, target);
       }
@@ -136,24 +155,26 @@ export function patchFs(ctx: RecorderContext): void {
     };
   }
 
-  fs.writeFile = wrapAsync(original.writeFile.bind(original), 'fs_write', 0);
-  fs.writeFileSync = wrapSync(original.writeFileSync.bind(original), 'fs_write', 0);
-  fs.appendFile = wrapAsync(original.appendFile.bind(original), 'fs_write', 0);
-  fs.appendFileSync = wrapSync(original.appendFileSync.bind(original), 'fs_write', 0);
-  fs.mkdir = wrapAsync(original.mkdir.bind(original), 'fs_write', 0);
-  fs.mkdirSync = wrapSync(original.mkdirSync.bind(original), 'fs_write', 0);
-  fs.readFile = wrapAsync(original.readFile.bind(original), 'fs_read', 0);
-  fs.readFileSync = wrapSync(original.readFileSync.bind(original), 'fs_read', 0);
-  fs.unlink = wrapAsync(original.unlink.bind(original), 'fs_delete', 0);
-  fs.unlinkSync = wrapSync(original.unlinkSync.bind(original), 'fs_delete', 0);
-  fs.rm = wrapAsync(original.rm.bind(original), 'fs_delete', 0);
-  fs.rmSync = wrapSync(original.rmSync.bind(original), 'fs_delete', 0);
+  // Runtime monkey-patching requires casting through any
+  const _fs = fs as any;
+  _fs.writeFile = wrapAsync(original.writeFile.bind(original), 'fs_write', 0);
+  _fs.writeFileSync = wrapSync(original.writeFileSync.bind(original), 'fs_write', 0);
+  _fs.appendFile = wrapAsync(original.appendFile.bind(original), 'fs_write', 0);
+  _fs.appendFileSync = wrapSync(original.appendFileSync.bind(original), 'fs_write', 0);
+  _fs.mkdir = wrapAsync(original.mkdir.bind(original), 'fs_write', 0);
+  _fs.mkdirSync = wrapSync(original.mkdirSync.bind(original), 'fs_write', 0);
+  _fs.readFile = wrapAsync(original.readFile.bind(original), 'fs_read', 0);
+  _fs.readFileSync = wrapSync(original.readFileSync.bind(original), 'fs_read', 0);
+  _fs.unlink = wrapAsync(original.unlink.bind(original), 'fs_delete', 0);
+  _fs.unlinkSync = wrapSync(original.unlinkSync.bind(original), 'fs_delete', 0);
+  _fs.rm = wrapAsync(original.rm.bind(original), 'fs_delete', 0);
+  _fs.rmSync = wrapSync(original.rmSync.bind(original), 'fs_delete', 0);
 
-  fs.rename = function (oldPath: any, newPath: any, ...rest: any[]) {
-    if (ctx.state.bypass) return original.rename(oldPath, newPath, ...rest);
+  _fs.rename = function (oldPath: any, newPath: any, ...rest: any[]) {
+    if (ctx.state.bypass) return (original.rename as any).call(fs, oldPath, newPath, ...rest);
     const oldTarget = pathFromArg(oldPath);
     const newTarget = pathFromArg(newPath);
-    const callback = rest.find((arg) => typeof arg === 'function');
+    const callback = rest.find((arg: any) => typeof arg === 'function');
     if (callback) {
       const wrapped = function (err: Error | null, ...cbArgs: any[]) {
         if (!err) {
@@ -163,31 +184,70 @@ export function patchFs(ctx: RecorderContext): void {
         return callback(err, ...cbArgs);
       };
       const newArgs = [oldPath, newPath, ...rest];
-      const cbIndex = newArgs.findIndex((arg) => typeof arg === 'function');
+      const cbIndex = newArgs.findIndex((arg: any) => typeof arg === 'function');
       newArgs[cbIndex] = wrapped;
       return original.rename.apply(fs, newArgs as any);
     }
 
-    const result = original.rename(oldPath, newPath, ...rest);
+    const result = (original.rename as any).call(fs, oldPath, newPath, ...rest);
     if (result && typeof result.then === 'function') {
-      result.then(() => {
-        if (oldTarget) recordFs(ctx, 'fs_delete', oldTarget);
-        if (newTarget) recordFs(ctx, 'fs_write', newTarget);
-      }).catch(() => {});
+      return result.then(
+        (value: unknown) => {
+          if (oldTarget) recordFs(ctx, 'fs_delete', oldTarget);
+          if (newTarget) recordFs(ctx, 'fs_write', newTarget);
+          return value;
+        },
+        (err: unknown) => {
+          throw err;
+        },
+      );
     } else {
       if (oldTarget) recordFs(ctx, 'fs_delete', oldTarget);
       if (newTarget) recordFs(ctx, 'fs_write', newTarget);
     }
     return result;
-  } as typeof fs.rename;
+  };
 
-  fs.renameSync = function (oldPath: any, newPath: any, ...rest: any[]) {
-    if (ctx.state.bypass) return original.renameSync(oldPath, newPath, ...rest);
-    const result = original.renameSync(oldPath, newPath, ...rest);
+  _fs.renameSync = function (oldPath: any, newPath: any, ...rest: any[]) {
+    if (ctx.state.bypass) return (original.renameSync as any).call(fs, oldPath, newPath, ...rest);
+    const result = (original.renameSync as any).call(fs, oldPath, newPath, ...rest);
     const oldTarget = pathFromArg(oldPath);
     const newTarget = pathFromArg(newPath);
     if (oldTarget) recordFs(ctx, 'fs_delete', oldTarget);
     if (newTarget) recordFs(ctx, 'fs_write', newTarget);
     return result;
-  } as typeof fs.renameSync;
+  };
+
+  if (original.promises) {
+    const p = original.promises as typeof fs.promises;
+    const wrapPromise = (
+      fn: (...args: any[]) => Promise<any>,
+      category: EffectEventData['category'],
+      pathIndex = 0
+    ) => {
+      return async function (...args: any[]) {
+        if (ctx.state.bypass) return fn.apply(p, args as any);
+        const target = pathFromArg(args[pathIndex]);
+        const result = await fn.apply(p, args as any);
+        if (target) recordFs(ctx, category, target);
+        return result;
+      };
+    };
+
+    fs.promises.writeFile = wrapPromise(p.writeFile.bind(p), 'fs_write', 0) as any;
+    fs.promises.appendFile = wrapPromise(p.appendFile.bind(p), 'fs_write', 0) as any;
+    fs.promises.mkdir = wrapPromise(p.mkdir.bind(p), 'fs_write', 0) as any;
+    fs.promises.readFile = wrapPromise(p.readFile.bind(p), 'fs_read', 0) as any;
+    fs.promises.unlink = wrapPromise(p.unlink.bind(p), 'fs_delete', 0) as any;
+    fs.promises.rm = wrapPromise(p.rm.bind(p), 'fs_delete', 0) as any;
+    fs.promises.rename = async function (oldPath: any, newPath: any, ...rest: any[]) {
+      if (ctx.state.bypass) return (p.rename as any).call(p, oldPath, newPath, ...rest);
+      const result = await (p.rename as any).call(p, oldPath, newPath, ...rest);
+      const oldTarget = pathFromArg(oldPath);
+      const newTarget = pathFromArg(newPath);
+      if (oldTarget) recordFs(ctx, 'fs_delete', oldTarget);
+      if (newTarget) recordFs(ctx, 'fs_write', newTarget);
+      return result;
+    } as any;
+  }
 }

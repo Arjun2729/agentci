@@ -1,6 +1,6 @@
 import path from 'path';
 import { EffectSignature, PolicyConfig, PolicyFinding } from '../types';
-import { expandTilde, matchHost, matchPath, normalizePathForMatch } from './match';
+import { expandTilde, matchHost, matchKey, matchPath, normalizePathForMatch } from './match';
 import { toEtldPlus1 } from '../../recorder/canonicalize';
 
 function isAbsolute(p: string): boolean {
@@ -49,19 +49,21 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
 
     if (!matchPath(allowWrites, candidate)) {
       findings.push({
-        severity: 'WARN',
+        severity: config.policy.filesystem.enforce_allowlist ? 'BLOCK' : 'WARN',
         category: 'filesystem',
-        message: `Filesystem Violation (WARN): write not in allow_writes: ${writePath}`
+        message: `Filesystem Violation (${config.policy.filesystem.enforce_allowlist ? 'BLOCK' : 'WARN'}): write not in allow_writes: ${writePath}`
       });
     }
   }
 
   const allowedEtlds = config.policy.network.allow_etld_plus_1.map((value) => value.toLowerCase());
+  const hasNetworkAllowlist =
+    config.policy.network.allow_hosts.length > 0 || config.policy.network.allow_etld_plus_1.length > 0;
   for (const host of signature.effects.net_hosts) {
     const hostAllowed = matchHost(config.policy.network.allow_hosts, host);
     const etld = toEtldPlus1(host).toLowerCase();
     const etldAllowed = allowedEtlds.includes(etld);
-    if (!hostAllowed && !etldAllowed) {
+    if (!hostAllowed && !etldAllowed && (config.policy.network.enforce_allowlist || hasNetworkAllowlist)) {
       findings.push({
         severity: 'BLOCK',
         category: 'network',
@@ -81,15 +83,15 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
     }
     if (!config.policy.exec.allow_commands.includes(cmd)) {
       findings.push({
-        severity: 'WARN',
+        severity: config.policy.exec.enforce_allowlist ? 'BLOCK' : 'WARN',
         category: 'exec',
-        message: `Exec Violation (WARN): command '${cmd}' not in allow_commands (not blocked)`
+        message: `Exec Violation (${config.policy.exec.enforce_allowlist ? 'BLOCK' : 'WARN'}): command '${cmd}' not in allow_commands (not blocked)`
       });
     }
   }
 
   for (const sensitive of signature.effects.sensitive_keys_accessed) {
-    if (config.policy.sensitive.block_env.includes(sensitive)) {
+    if (matchKey(config.policy.sensitive.block_env, sensitive)) {
       findings.push({
         severity: 'BLOCK',
         category: 'sensitive',

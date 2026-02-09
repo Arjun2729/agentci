@@ -5,6 +5,7 @@ import { EffectSignature } from '../src/core/types';
 const base: EffectSignature = {
   meta: {
     signature_version: '1.0',
+    normalization_rules_version: '1.0',
     agentci_version: '0.1.0',
     platform: 'darwin-arm64',
     adapter: 'node-hook',

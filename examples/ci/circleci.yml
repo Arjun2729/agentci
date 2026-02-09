@@ -1,0 +1,26 @@
+version: 2.1
+
+jobs:
+  agentci:
+    docker:
+      - image: cimg/node:20.11
+    steps:
+      - checkout
+      - run: npm ci
+      - run: npx agentci init
+      - run: npx agentci record -- node my_agent.js
+      - run:
+          name: Summarize latest run
+          command: |
+            RUN_ID=$(ls -t .agentci/runs | head -n1)
+            npx agentci summarize .agentci/runs/$RUN_ID/trace.jsonl
+      - run:
+          name: Diff against baseline
+          command: |
+            RUN_ID=$(ls -t .agentci/runs | head -n1)
+            npx agentci diff .agentci/baseline.json .agentci/runs/$RUN_ID/signature.json --format json
+
+workflows:
+  agentci:
+    jobs:
+      - agentci

@@ -4,6 +4,7 @@ import { RecorderContext } from '../context';
 import { EffectEventData, TraceEvent } from '../../core/types';
 import { normalizeCommand } from '../canonicalize';
 import { logger } from '../logger';
+import { enforceEffect } from '../enforce';
 
 function now(): number {
   return Date.now();
@@ -31,6 +32,7 @@ function recordExec(ctx: RecorderContext, command: string, args: string[]): void
       }
     };
     ctx.writer.write(buildEvent(ctx, data));
+    enforceEffect(ctx, data);
   } catch (err) {
     logger.debug('exec-patch', `Failed to record exec for ${command}`, { error: String(err) });
   }
@@ -41,7 +43,10 @@ export function patchChildProcess(ctx: RecorderContext): void {
     spawn: childProcess.spawn,
     exec: childProcess.exec,
     execFile: childProcess.execFile,
-    fork: childProcess.fork
+    fork: childProcess.fork,
+    execSync: childProcess.execSync,
+    spawnSync: childProcess.spawnSync,
+    execFileSync: childProcess.execFileSync
   };
 
   childProcess.spawn = function (command: any, args?: any, options?: any) {
@@ -78,4 +83,27 @@ export function patchChildProcess(ctx: RecorderContext): void {
     }
     return original.fork(modulePath, args as any, options as any);
   } as typeof childProcess.fork;
+
+  childProcess.execSync = function (command: any, options?: any) {
+    if (!ctx.state.bypass) {
+      recordExec(ctx, String(command), []);
+    }
+    return original.execSync(command, options as any);
+  } as typeof childProcess.execSync;
+
+  childProcess.spawnSync = function (command: any, args?: any, options?: any) {
+    if (!ctx.state.bypass) {
+      const argv = Array.isArray(args) ? args : [];
+      recordExec(ctx, String(command), argv.map((arg) => String(arg)));
+    }
+    return original.spawnSync(command, args as any, options as any);
+  } as typeof childProcess.spawnSync;
+
+  childProcess.execFileSync = function (file: any, args?: any, options?: any) {
+    if (!ctx.state.bypass) {
+      const argv = Array.isArray(args) ? args : [];
+      recordExec(ctx, String(file), argv.map((arg) => String(arg)));
+    }
+    return original.execFileSync(file, args as any, options as any);
+  } as typeof childProcess.execFileSync;
 }

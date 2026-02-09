@@ -9,7 +9,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync, spawnSync } from 'child_process';
+import { spawnSync } from 'child_process';
 
 function createTempWorkspace(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentci-integration-'));

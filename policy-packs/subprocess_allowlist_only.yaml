@@ -1,0 +1,5 @@
+name: subprocess_allowlist_only
+description: Enforce allowlist-only execution for subprocesses.
+policy:
+  exec:
+    enforce_allowlist: true

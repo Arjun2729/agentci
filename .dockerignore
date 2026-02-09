@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+python
+.git
+.github
+.claude
+.agentci
+.vscode
+.idea
+*.log
+.DS_Store

@@ -52,10 +52,16 @@ describe('summarize', () => {
     const config: PolicyConfig = {
       version: 1,
       workspace_root: dir,
+      normalization: {
+        version: '1.0',
+        filesystem: { collapse_temp: true, collapse_home: true, ignore_globs: [] },
+        network: { normalize_hosts: true },
+        exec: { argv_mode: 'hash', mask_patterns: [] },
+      },
       policy: {
-        filesystem: { allow_writes: [], block_writes: [] },
-        network: { allow_etld_plus_1: [], allow_hosts: [] },
-        exec: { allow_commands: [], block_commands: [] },
+        filesystem: { allow_writes: [], block_writes: [], enforce_allowlist: false },
+        network: { allow_etld_plus_1: [], allow_hosts: [], enforce_allowlist: true },
+        exec: { allow_commands: [], block_commands: [], enforce_allowlist: true },
         sensitive: { block_env: [], block_file_globs: [] }
       },
       reporting: { explain_templates: true }

@@ -18,7 +18,7 @@ function append(event: TraceEvent): void {
   if (!tracePath) return;
   try {
     fs.appendFileSync(tracePath, `${JSON.stringify(event)}\n`, 'utf8');
-  } catch (err) {
+  } catch {
     // best-effort
   }
 }

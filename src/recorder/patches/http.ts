@@ -5,6 +5,7 @@ import { RecorderContext } from '../context';
 import { EffectEventData, TraceEvent } from '../../core/types';
 import { toEtldPlus1 } from '../canonicalize';
 import { logger } from '../logger';
+import { enforceEffect } from '../enforce';
 
 function now(): number {
   return Date.now();
@@ -26,7 +27,7 @@ function extractHost(options: any): { host: string; method: string } | null {
     try {
       const url = new URL(options);
       return { host: url.hostname, method: 'GET' };
-    } catch (err) {
+    } catch {
       return null;
     }
   }
@@ -35,7 +36,10 @@ function extractHost(options: any): { host: string; method: string } | null {
   }
   const host = options.hostname || options.host;
   if (!host) return null;
-  return { host: String(host).split(':')[0], method: String(options.method || 'GET') };
+  const hostStr = String(host);
+  // Guard against malicious objects with huge toString() or non-string types
+  if (hostStr.length > 253) return null; // Max DNS hostname length
+  return { host: hostStr.split(':')[0], method: String(options.method || 'GET') };
 }
 
 function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: string, method: string) {
@@ -51,6 +55,7 @@ function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: strin
       }
     };
     ctx.writer.write(buildEvent(ctx, data));
+    enforceEffect(ctx, data);
   } catch (err) {
     logger.debug('http-patch', `Failed to record net_outbound for ${host}`, { error: String(err) });
   }

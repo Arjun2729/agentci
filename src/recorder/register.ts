@@ -9,7 +9,9 @@ import { patchHttp } from './patches/http';
 import { patchFetch } from './patches/fetch';
 import { loadConfig } from '../core/policy/config';
 import { TraceEvent } from '../core/types';
+import { matchKey } from '../core/policy/match';
 import { logger } from './logger';
+import { enforceEffect } from './enforce';
 
 function now(): number {
   return Date.now();
@@ -27,27 +29,75 @@ function buildLifecycle(ctx: RecorderContext, stage: 'start' | 'stop' | 'error',
 }
 
 function patchEnvSensitive(ctx: RecorderContext): void {
-  const blocked = new Set(ctx.config.policy.sensitive.block_env);
-  if (!blocked.size) return;
+  const blocked = ctx.config.policy.sensitive.block_env;
+  if (!blocked.length) return;
   const originalEnv = process.env;
-  process.env = new Proxy(originalEnv, {
+  const proxy = new Proxy(originalEnv, {
     get(target, prop, receiver) {
-      if (typeof prop === 'string' && blocked.has(prop)) {
-        ctx.writer.write({
+      if (typeof prop === 'string' && matchKey(blocked, prop)) {
+        const event = {
           id: randomUUID(),
           timestamp: now(),
           run_id: ctx.runId,
-          type: 'effect',
+          type: 'effect' as const,
           data: {
             category: 'sensitive_access',
             kind: 'observed',
             sensitive: { type: 'env_var', key_name: prop }
           }
-        });
+        };
+        ctx.writer.write(event);
+        enforceEffect(ctx, event.data as any);
       }
       return Reflect.get(target, prop, receiver);
+    },
+    // Also intercept Object.keys, for-in, destructuring, etc.
+    ownKeys(target) {
+      return Reflect.ownKeys(target);
+    },
+    getOwnPropertyDescriptor(target, prop) {
+      const desc = Reflect.getOwnPropertyDescriptor(target, prop);
+      if (desc && typeof prop === 'string' && matchKey(blocked, prop)) {
+        const event = {
+          id: randomUUID(),
+          timestamp: now(),
+          run_id: ctx.runId,
+          type: 'effect' as const,
+          data: {
+            category: 'sensitive_access',
+            kind: 'observed',
+            sensitive: { type: 'env_var', key_name: prop }
+          }
+        };
+        ctx.writer.write(event);
+        enforceEffect(ctx, event.data as any);
+      }
+      return desc;
+    },
+    has(target, prop) {
+      if (typeof prop === 'string' && matchKey(blocked, prop)) {
+        const event = {
+          id: randomUUID(),
+          timestamp: now(),
+          run_id: ctx.runId,
+          type: 'effect' as const,
+          data: {
+            category: 'sensitive_access',
+            kind: 'observed',
+            sensitive: { type: 'env_var', key_name: prop }
+          }
+        };
+        ctx.writer.write(event);
+        enforceEffect(ctx, event.data as any);
+      }
+      return Reflect.has(target, prop);
     }
   });
+  process.env = proxy;
+  // Also patch globalThis.process.env to prevent bypass via globalThis
+  if (globalThis.process) {
+    (globalThis as any).process.env = proxy;
+  }
 }
 
 function initRecorder(): void {
@@ -81,6 +131,7 @@ function initRecorder(): void {
     runDir,
     workspaceRoot,
     config,
+    enforce: process.env.AGENTCI_ENFORCE === '1' || process.env.AGENTCI_ENFORCE === 'true',
     writer,
     state,
     originals: {

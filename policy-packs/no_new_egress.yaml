@@ -1,0 +1,7 @@
+name: no_new_egress
+description: Block all outbound network unless explicitly allow-listed.
+policy:
+  network:
+    allow_etld_plus_1: []
+    allow_hosts: []
+    enforce_allowlist: true

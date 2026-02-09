@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 import os
 from typing import Any
 
@@ -20,10 +21,10 @@ _patched = False
 class _SensitiveEnvProxy:
     """A dict-like wrapper around os.environ that records sensitive key access."""
 
-    def __init__(self, original: os._Environ, ctx: dict[str, Any], blocked_keys: set[str]) -> None:  # type: ignore[type-arg]
+    def __init__(self, original: os._Environ, ctx: dict[str, Any], blocked_keys: list[str]) -> None:  # type: ignore[type-arg]
         object.__setattr__(self, "_original", original)
         object.__setattr__(self, "_ctx", ctx)
-        object.__setattr__(self, "_blocked", blocked_keys)
+        object.__setattr__(self, "_blocked", [key.lower() for key in blocked_keys])
 
     def _record_access(self, key: str) -> None:
         ctx = object.__getattribute__(self, "_ctx")
@@ -39,15 +40,18 @@ class _SensitiveEnvProxy:
         except Exception as e:
             logger.debug(f"Failed to record sensitive env access: {e}")
 
+    def _is_blocked(self, key: str) -> bool:
+        patterns = object.__getattribute__(self, "_blocked")
+        lowered = key.lower()
+        return any(fnmatch.fnmatchcase(lowered, pattern) for pattern in patterns)
+
     def __getitem__(self, key: str) -> str:
-        blocked = object.__getattribute__(self, "_blocked")
-        if key in blocked:
+        if self._is_blocked(key):
             self._record_access(key)
         return object.__getattribute__(self, "_original")[key]
 
     def get(self, key: str, default: str | None = None) -> str | None:
-        blocked = object.__getattribute__(self, "_blocked")
-        if key in blocked:
+        if self._is_blocked(key):
             self._record_access(key)
         return object.__getattribute__(self, "_original").get(key, default)
 
@@ -87,7 +91,7 @@ def patch_env_sensitive(ctx: dict[str, Any], blocked_keys: list[str]) -> None:
     if _patched or not blocked_keys:
         return
     _original_environ = os.environ
-    os.environ = _SensitiveEnvProxy(os.environ, ctx, set(blocked_keys))  # type: ignore[assignment]
+    os.environ = _SensitiveEnvProxy(os.environ, ctx, blocked_keys)  # type: ignore[assignment]
     _patched = True
 
 

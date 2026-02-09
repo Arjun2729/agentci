@@ -20,7 +20,37 @@ def _load_config_block_env() -> list[str]:
     """Best-effort load of block_env from config."""
     config_path = os.environ.get("AGENTCI_CONFIG_PATH")
     if not config_path or not os.path.isfile(config_path):
-        return ["AWS_SECRET_ACCESS_KEY", "AWS_ACCESS_KEY_ID"]
+        return [
+            "AWS_*",
+            "GCP_*",
+            "AZURE_*",
+            "OPENAI_*",
+            "ANTHROPIC_*",
+            "*_KEY",
+            "*_TOKEN",
+            "*_SECRET",
+            "*_PASSWORD",
+            "DATABASE_URL",
+            "SLACK_*",
+            "GH_*",
+            "GITHUB_*",
+        ]
+
+
+def _load_config_block_file_globs() -> list[str]:
+    """Best-effort load of block_file_globs from config."""
+    config_path = os.environ.get("AGENTCI_CONFIG_PATH")
+    if not config_path or not os.path.isfile(config_path):
+        return ["~/.ssh/**", "~/.aws/**", "**/.env*"]
+    try:
+        import yaml  # optional dep
+
+        with open(config_path, "r") as f:
+            parsed = yaml.safe_load(f)
+        return parsed.get("policy", {}).get("sensitive", {}).get("block_file_globs", [])
+    except Exception as e:
+        logger.debug(f"Failed to load config: {e}")
+        return ["~/.ssh/**", "~/.aws/**", "**/.env*"]
     try:
         import yaml  # optional dep
 
@@ -29,7 +59,21 @@ def _load_config_block_env() -> list[str]:
         return parsed.get("policy", {}).get("sensitive", {}).get("block_env", [])
     except Exception as e:
         logger.debug(f"Failed to load config: {e}")
-        return ["AWS_SECRET_ACCESS_KEY", "AWS_ACCESS_KEY_ID"]
+        return [
+            "AWS_*",
+            "GCP_*",
+            "AZURE_*",
+            "OPENAI_*",
+            "ANTHROPIC_*",
+            "*_KEY",
+            "*_TOKEN",
+            "*_SECRET",
+            "*_PASSWORD",
+            "DATABASE_URL",
+            "SLACK_*",
+            "GH_*",
+            "GITHUB_*",
+        ]
 
 
 def start_recording(
@@ -98,6 +142,7 @@ def start_recording(
 
     try:
         blocked_env = _load_config_block_env()
+        ctx["block_file_globs"] = _load_config_block_file_globs()
         patch_env_sensitive(ctx, blocked_env)
         logger.debug(f"Patched env sensitive access ({len(blocked_env)} keys)")
     except Exception as e:

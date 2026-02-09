@@ -8,22 +8,60 @@ export function defaultConfig(workspaceRoot: string): PolicyConfig {
   return {
     version: 1,
     workspace_root: workspaceRoot,
+    normalization: {
+      version: '1.0',
+      filesystem: {
+        collapse_temp: true,
+        collapse_home: true,
+        ignore_globs: [
+          '**/.DS_Store',
+          '**/Thumbs.db',
+          '**/.git/**',
+          '**/.idea/**',
+          '**/.vscode/**',
+        ],
+      },
+      network: {
+        normalize_hosts: true,
+      },
+      exec: {
+        argv_mode: 'hash',
+        mask_patterns: [],
+      },
+    },
     policy: {
       filesystem: {
         allow_writes: ['./workspace/**', './tmp/**'],
-        block_writes: ['/etc/**', '~/**']
+        block_writes: ['/etc/**', '~/**'],
+        enforce_allowlist: false
       },
       network: {
-        allow_etld_plus_1: ['google.com', 'weatherapi.com'],
-        allow_hosts: ['*.google.com', 'api.weather.com']
+        allow_etld_plus_1: [],
+        allow_hosts: [],
+        enforce_allowlist: true
       },
       exec: {
         allow_commands: ['git', 'ls', 'echo', 'node', 'npm'],
-        block_commands: ['rm', 'curl', 'wget']
+        block_commands: ['rm', 'curl', 'wget'],
+        enforce_allowlist: true
       },
       sensitive: {
-        block_env: ['AWS_SECRET_ACCESS_KEY', 'AWS_ACCESS_KEY_ID'],
-        block_file_globs: ['~/.ssh/**', '~/.aws/**']
+        block_env: [
+          'AWS_*',
+          'GCP_*',
+          'AZURE_*',
+          'OPENAI_*',
+          'ANTHROPIC_*',
+          '*_KEY',
+          '*_TOKEN',
+          '*_SECRET',
+          '*_PASSWORD',
+          'DATABASE_URL',
+          'SLACK_*',
+          'GH_*',
+          'GITHUB_*'
+        ],
+        block_file_globs: ['~/.ssh/**', '~/.aws/**', '**/.env*']
       }
     },
     reporting: {
@@ -52,9 +90,41 @@ export function loadConfig(configPath: string | undefined, workspaceRootFallback
     ...defaultConfig(workspaceRoot),
     ...parsed,
     workspace_root: workspaceRoot,
+    normalization: {
+      ...defaultConfig(workspaceRoot).normalization,
+      ...(parsed?.normalization ?? {}),
+      filesystem: {
+        ...defaultConfig(workspaceRoot).normalization.filesystem,
+        ...(parsed?.normalization?.filesystem ?? {}),
+      },
+      network: {
+        ...defaultConfig(workspaceRoot).normalization.network,
+        ...(parsed?.normalization?.network ?? {}),
+      },
+      exec: {
+        ...defaultConfig(workspaceRoot).normalization.exec,
+        ...(parsed?.normalization?.exec ?? {}),
+      },
+    },
     policy: {
       ...defaultConfig(workspaceRoot).policy,
-      ...(parsed?.policy ?? {})
+      ...(parsed?.policy ?? {}),
+      filesystem: {
+        ...defaultConfig(workspaceRoot).policy.filesystem,
+        ...(parsed?.policy?.filesystem ?? {})
+      },
+      network: {
+        ...defaultConfig(workspaceRoot).policy.network,
+        ...(parsed?.policy?.network ?? {})
+      },
+      exec: {
+        ...defaultConfig(workspaceRoot).policy.exec,
+        ...(parsed?.policy?.exec ?? {})
+      },
+      sensitive: {
+        ...defaultConfig(workspaceRoot).policy.sensitive,
+        ...(parsed?.policy?.sensitive ?? {})
+      }
     },
     reporting: {
       ...defaultConfig(workspaceRoot).reporting,

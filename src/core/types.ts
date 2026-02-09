@@ -54,6 +54,7 @@ export interface TraceEvent {
 export interface EffectSignature {
   meta: {
     signature_version: '1.0';
+    normalization_rules_version: string;
     agentci_version: string;
     platform: string;
     adapter: 'node-hook' | 'openclaw+node-hook';
@@ -75,18 +76,36 @@ export interface EffectSignature {
 export interface PolicyConfig {
   version: number;
   workspace_root: string;
+  normalization: {
+    version: string;
+    filesystem: {
+      collapse_temp: boolean;
+      collapse_home: boolean;
+      ignore_globs: string[];
+    };
+    network: {
+      normalize_hosts: boolean;
+    };
+    exec: {
+      argv_mode: 'full' | 'hash' | 'none';
+      mask_patterns: string[];
+    };
+  };
   policy: {
     filesystem: {
       allow_writes: string[];
       block_writes: string[];
+      enforce_allowlist: boolean;
     };
     network: {
       allow_etld_plus_1: string[];
       allow_hosts: string[];
+      enforce_allowlist: boolean;
     };
     exec: {
       allow_commands: string[];
       block_commands: string[];
+      enforce_allowlist: boolean;
     };
     sensitive: {
       block_env: string[];

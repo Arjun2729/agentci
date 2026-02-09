@@ -2,7 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import { EffectEventData, EffectSignature, PolicyConfig, TraceEvent } from '../types';
 import { readJsonl } from '../trace/read_jsonl';
-import { toWorkspacePath } from '../../recorder/canonicalize';
+import { toEtldPlus1, toWorkspacePath } from '../../recorder/canonicalize';
+import { normalizeExecArgv, normalizeExecCommand, normalizeFsPath, normalizeHost } from '../normalize';
 
 function sorted(values: Set<string>): string[] {
   return Array.from(values).filter(Boolean).sort();
@@ -36,35 +37,40 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
       case 'fs_write': {
         if (!data.fs) break;
         const entry = toWorkspacePath(data.fs.path_resolved, config.workspace_root);
-        effects.fs_writes.add(entry.value);
+        const normalized = normalizeFsPath(entry.value, config);
+        if (normalized) effects.fs_writes.add(normalized);
         break;
       }
       case 'fs_delete': {
         if (!data.fs) break;
         const entry = toWorkspacePath(data.fs.path_resolved, config.workspace_root);
-        effects.fs_deletes.add(entry.value);
+        const normalized = normalizeFsPath(entry.value, config);
+        if (normalized) effects.fs_deletes.add(normalized);
         break;
       }
       case 'fs_read': {
         if (!data.fs) break;
         const entry = toWorkspacePath(data.fs.path_resolved, config.workspace_root);
         if (entry.isExternal || !data.fs.is_workspace_local) {
-          effects.fs_reads_external.add(entry.value);
+          const normalized = normalizeFsPath(entry.value, config);
+          if (normalized) effects.fs_reads_external.add(normalized);
         }
         break;
       }
       case 'net_outbound': {
         if (!data.net) break;
-        effects.net_hosts.add(data.net.host_raw);
-        effects.net_etld_plus_1.add(data.net.host_etld_plus_1);
+        const host = normalizeHost(data.net.host_raw, config);
+        effects.net_hosts.add(host);
+        effects.net_etld_plus_1.add(toEtldPlus1(host));
         break;
       }
       case 'exec': {
         if (!data.exec) break;
         const argv = data.exec.argv_normalized || [];
-        const cmd = argv[0] || data.exec.command_raw;
+        const normalizedArgv = normalizeExecArgv(argv, config);
+        const cmd = normalizeExecCommand(normalizedArgv[0] || data.exec.command_raw);
         effects.exec_commands.add(cmd);
-        effects.exec_argv.add(JSON.stringify(argv));
+        effects.exec_argv.add(JSON.stringify(normalizedArgv));
         break;
       }
       case 'sensitive_access': {
@@ -82,6 +88,7 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
   const signature: EffectSignature = {
     meta: {
       signature_version: '1.0',
+      normalization_rules_version: config.normalization.version,
       agentci_version: agentciVersion,
       platform: `${process.platform}-${process.arch}`,
       adapter: detectAdapter(events),

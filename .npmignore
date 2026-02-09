@@ -1,0 +1,32 @@
+# Source (dist is shipped instead)
+src/
+tests/
+python/
+examples/
+
+# Config & tooling
+.github/
+.claude/
+.vscode/
+.idea/
+.agentci/
+coverage/
+tsconfig.json
+tsup.config.ts
+eslint.config.mjs
+.prettierrc
+.prettierignore
+.eslintignore
+vitest.config.ts
+
+# Development artifacts
+*.log
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Docs (README + LICENSE are included by default)
+CONTRIBUTING.md
+Dockerfile
+.dockerignore

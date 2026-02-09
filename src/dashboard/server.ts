@@ -7,10 +7,96 @@ import http from 'http';
 import fs from 'fs';
 import path from 'path';
 import { EffectSignature, PolicyFinding } from '../core/types';
-import { diffSignatures } from '../core/diff/diff';
 import { evaluatePolicy } from '../core/policy/evaluate';
 import { loadConfig } from '../core/policy/config';
 import { verifyTraceIntegrity } from '../core/integrity';
+import { EffectSignatureSchema } from '../core/schema';
+
+const CSP_HEADER =
+  "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self' data:";
+
+const MAX_RATE_LIMITER_ENTRIES = 10_000;
+
+/** Escape HTML special characters to prevent XSS. */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Validate that a run ID is safe (alphanumeric, dashes, dots only)
+ * and that the resolved path stays inside the runs directory.
+ */
+function isValidRunId(runsDir: string, runId: string): boolean {
+  if (!/^[\w.:-]+$/.test(runId)) return false;
+  const resolved = path.resolve(runsDir, runId);
+  const resolvedRunsDir = path.resolve(runsDir);
+  return resolved.startsWith(resolvedRunsDir + path.sep);
+}
+
+/** Simple in-memory rate limiter per IP with bounded map size. */
+class RateLimiter {
+  private counts = new Map<string, { count: number; windowStart: number }>();
+  private maxPerWindow: number;
+  private windowMs: number;
+  private maxEntries: number;
+
+  constructor(maxPerWindow: number, windowMs: number, maxEntries = MAX_RATE_LIMITER_ENTRIES) {
+    this.maxPerWindow = maxPerWindow;
+    this.windowMs = windowMs;
+    this.maxEntries = maxEntries;
+  }
+
+  allow(key: string): boolean {
+    const now = Date.now();
+    const entry = this.counts.get(key);
+    if (!entry || now - entry.windowStart >= this.windowMs) {
+      // Evict stale/oldest if at capacity
+      if (!this.counts.has(key) && this.counts.size >= this.maxEntries) {
+        this.cleanup();
+        if (this.counts.size >= this.maxEntries) {
+          this.evictOldest();
+        }
+      }
+      this.counts.set(key, { count: 1, windowStart: now });
+      return true;
+    }
+    entry.count++;
+    if (entry.count > this.maxPerWindow) return false;
+    return true;
+  }
+
+  /** Periodically evict stale entries. */
+  cleanup(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.counts) {
+      if (now - entry.windowStart >= this.windowMs * 2) {
+        this.counts.delete(key);
+      }
+    }
+  }
+
+  /** Evict the oldest entry when map is full. */
+  private evictOldest(): void {
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+    for (const [key, entry] of this.counts) {
+      if (entry.windowStart < oldestTime) {
+        oldestTime = entry.windowStart;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey) this.counts.delete(oldestKey);
+  }
+
+  get size(): number {
+    return this.counts.size;
+  }
+}
 
 interface RunSummary {
   runId: string;
@@ -30,11 +116,16 @@ function discoverRuns(runsDir: string): RunSummary[] {
 
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
+    if (!isValidRunId(runsDir, entry.name)) continue;
     const sigPath = path.join(runsDir, entry.name, 'signature.json');
     if (!fs.existsSync(sigPath)) continue;
 
     try {
-      const sig: EffectSignature = JSON.parse(fs.readFileSync(sigPath, 'utf8'));
+      const raw = JSON.parse(fs.readFileSync(sigPath, 'utf8'));
+      const parsed = EffectSignatureSchema.safeParse(raw);
+      if (!parsed.success) continue;
+      const sig: EffectSignature = parsed.data;
+
       const configPath = path.join(path.dirname(runsDir), 'config.yaml');
       const config = loadConfig(fs.existsSync(configPath) ? configPath : undefined, process.cwd());
       const findings = evaluatePolicy(sig, config);
@@ -74,15 +165,30 @@ function discoverRuns(runsDir: string): RunSummary[] {
   return summaries.sort((a, b) => b.timestamp - a.timestamp);
 }
 
-function getRunDetail(runsDir: string, runId: string): {
+function getRunDetail(
+  runsDir: string,
+  runId: string,
+): {
   signature: EffectSignature;
   findings: PolicyFinding[];
   integrity: { valid: boolean; details: string } | null;
 } | null {
-  const sigPath = path.join(runsDir, runId, 'signature.json');
+  const runPath = path.join(runsDir, runId);
+  // Reject symlinks to prevent TOCTOU attacks
+  try {
+    if (fs.lstatSync(runPath).isSymbolicLink()) return null;
+  } catch {
+    return null;
+  }
+
+  const sigPath = path.join(runPath, 'signature.json');
   if (!fs.existsSync(sigPath)) return null;
 
-  const sig: EffectSignature = JSON.parse(fs.readFileSync(sigPath, 'utf8'));
+  const raw = JSON.parse(fs.readFileSync(sigPath, 'utf8'));
+  const parsed = EffectSignatureSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const sig: EffectSignature = parsed.data;
+
   const configPath = path.join(path.dirname(runsDir), 'config.yaml');
   const config = loadConfig(fs.existsSync(configPath) ? configPath : undefined, process.cwd());
   const findings = evaluatePolicy(sig, config);
@@ -197,6 +303,7 @@ function dashboardHtml(): string {
     </div>
   </div>
   <script>
+    function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
     let runs = [];
     async function load() {
       const res = await fetch('/api/runs');
@@ -221,14 +328,14 @@ function dashboardHtml(): string {
         const intClass = r.integrityVerified === true ? 'verified' : r.integrityVerified === false ? 'failed' : 'unknown';
         const intLabel = r.integrityVerified === true ? 'Verified' : r.integrityVerified === false ? 'Failed' : 'N/A';
         const ts = r.timestamp ? new Date(r.timestamp).toLocaleString() : '-';
-        return '<tr onclick="showDetail(\\'' + r.runId + '\\')" style="cursor:pointer">' +
-          '<td><a href="#">' + r.runId + '</a></td>' +
-          '<td><span class="badge ' + r.status + '">' + r.status + '</span></td>' +
+        return '<tr onclick="showDetail(\\'' + esc(r.runId) + '\\')" style="cursor:pointer">' +
+          '<td><a href="#">' + esc(r.runId) + '</a></td>' +
+          '<td><span class="badge ' + esc(r.status) + '">' + esc(r.status) + '</span></td>' +
           '<td>' + r.findingsCount + '</td>' +
-          '<td>' + r.adapter + '</td>' +
-          '<td>' + r.platform + '</td>' +
-          '<td><span class="integrity ' + intClass + '">' + intLabel + '</span></td>' +
-          '<td>' + ts + '</td></tr>';
+          '<td>' + esc(r.adapter) + '</td>' +
+          '<td>' + esc(r.platform) + '</td>' +
+          '<td><span class="integrity ' + esc(intClass) + '">' + esc(intLabel) + '</span></td>' +
+          '<td>' + esc(ts) + '</td></tr>';
       }).join('');
       // Trend chart
       const recent = runs.slice(0, 50).reverse();
@@ -237,26 +344,26 @@ function dashboardHtml(): string {
         const maxFindings = Math.max(1, ...recent.map(r => r.findingsCount));
         document.getElementById('bar-chart').innerHTML = recent.map(r => {
           const h = Math.max(8, (r.findingsCount / maxFindings) * 100);
-          return '<div class="bar ' + r.status + '" style="height:' + h + '%" data-label="' + r.runId.slice(0,12) + ': ' + r.findingsCount + ' findings"></div>';
+          return '<div class="bar ' + esc(r.status) + '" style="height:' + h + '%" data-label="' + esc(r.runId.slice(0,12)) + ': ' + r.findingsCount + ' findings"></div>';
         }).join('');
       }
       document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
     }
     async function showDetail(runId) {
-      const res = await fetch('/api/runs/' + runId);
+      const res = await fetch('/api/runs/' + encodeURIComponent(runId));
       const data = await res.json();
       const modal = document.getElementById('detail-modal');
       const body = document.getElementById('modal-body');
-      let html = '<h2>Run: ' + runId + '</h2>';
+      let html = '<h2>Run: ' + esc(runId) + '</h2>';
       if (data.integrity) {
         const ic = data.integrity.valid ? 'verified' : 'failed';
-        html += '<p class="integrity ' + ic + '">Integrity: ' + data.integrity.details + '</p>';
+        html += '<p class="integrity ' + ic + '">Integrity: ' + esc(data.integrity.details) + '</p>';
       }
       html += '<h3 style="margin-top:16px">Effects</h3>';
-      html += '<pre>' + JSON.stringify(data.signature.effects, null, 2) + '</pre>';
+      html += '<pre>' + esc(JSON.stringify(data.signature.effects, null, 2)) + '</pre>';
       if (data.findings.length) {
         html += '<h3 style="margin-top:16px">Policy Findings (' + data.findings.length + ')</h3>';
-        html += data.findings.map(f => '<div class="finding"><span class="badge ' + f.severity.toLowerCase() + '">' + f.severity + '</span> ' + f.message + '</div>').join('');
+        html += data.findings.map(f => '<div class="finding"><span class="badge ' + esc(f.severity.toLowerCase()) + '">' + esc(f.severity) + '</span> ' + esc(f.message) + '</div>').join('');
       } else {
         html += '<p style="margin-top:16px;color:var(--pass)">No policy violations.</p>';
       }
@@ -272,47 +379,140 @@ function dashboardHtml(): string {
 </html>`;
 }
 
+function logRequest(method: string, url: string, status: number, ip: string): void {
+  const ts = new Date().toISOString();
+  // eslint-disable-next-line no-console
+  console.log(`${ts} ${method} ${url} ${status} ${ip}`);
+}
+
 export function serveDashboard(runsDir: string, port: number): void {
+  const startedAt = Date.now();
+  let requestCount = 0;
+  const limiter = new RateLimiter(100, 60_000); // 100 requests per minute per IP
+
+  // Periodically clean up stale rate limiter entries
+  const cleanupTimer = setInterval(() => limiter.cleanup(), 300_000);
+  if (cleanupTimer && typeof cleanupTimer === 'object' && 'unref' in cleanupTimer) {
+    cleanupTimer.unref();
+  }
+
   const server = http.createServer((req, res) => {
     const url = req.url || '/';
+    const method = req.method || 'GET';
+    requestCount++;
+
+    // Rate limiting
+    const clientIp = req.socket.remoteAddress || 'unknown';
+    if (!limiter.allow(clientIp)) {
+      logRequest(method, url, 429, clientIp);
+      res.writeHead(429, { 'Content-Type': 'application/json', 'Retry-After': '60' });
+      res.end(JSON.stringify({ error: 'Too many requests' }));
+      return;
+    }
+
+    // Health check endpoint
+    if (url === '/healthz') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', uptime_ms: Date.now() - startedAt }));
+      return;
+    }
+
+    // Readiness check
+    if (url === '/readyz') {
+      const ready = fs.existsSync(runsDir);
+      res.writeHead(ready ? 200 : 503, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: ready ? 'ready' : 'not_ready', runs_dir: runsDir }));
+      return;
+    }
+
+    // Metrics endpoint
+    if (url === '/api/metrics') {
+      const runs = discoverRuns(runsDir);
+      const pass = runs.filter((r) => r.status === 'pass').length;
+      const warn = runs.filter((r) => r.status === 'warn').length;
+      const block = runs.filter((r) => r.status === 'block').length;
+      logRequest(method, url, 200, clientIp);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          uptime_ms: Date.now() - startedAt,
+          total_requests: requestCount,
+          runs_total: runs.length,
+          runs_pass: pass,
+          runs_warn: warn,
+          runs_block: block,
+        }),
+      );
+      return;
+    }
 
     if (url === '/' || url === '/index.html') {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      logRequest(method, url, 200, clientIp);
+      res.writeHead(200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': CSP_HEADER,
+      });
       res.end(dashboardHtml());
       return;
     }
 
     if (url === '/api/runs') {
       const runs = discoverRuns(runsDir);
+      logRequest(method, url, 200, clientIp);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(runs));
       return;
     }
 
     if (url.startsWith('/api/runs/')) {
-      const runId = url.replace('/api/runs/', '').replace(/\/$/, '');
-      if (runId.includes('..') || runId.includes('/')) {
+      const rawId = decodeURIComponent(url.replace('/api/runs/', '').replace(/\/$/, ''));
+      if (!isValidRunId(runsDir, rawId)) {
+        logRequest(method, url, 400, clientIp);
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid run ID' }));
         return;
       }
-      const detail = getRunDetail(runsDir, runId);
+      const detail = getRunDetail(runsDir, rawId);
       if (!detail) {
+        logRequest(method, url, 404, clientIp);
         res.writeHead(404, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Run not found' }));
         return;
       }
+      logRequest(method, url, 200, clientIp);
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(detail));
       return;
     }
 
+    logRequest(method, url, 404, clientIp);
     res.writeHead(404, { 'Content-Type': 'text/plain' });
     res.end('Not found');
   });
 
+  // Graceful shutdown
+  function shutdown() {
+    server.close(() => process.exit(0));
+    // Force exit after 5 seconds if connections don't close
+    setTimeout(() => process.exit(1), 5000).unref();
+  }
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
+
   server.listen(port, () => {
     // eslint-disable-next-line no-console
     console.log(`AgentCI Dashboard running at http://localhost:${port}`);
+    // eslint-disable-next-line no-console
+    console.log(`  Health:  http://localhost:${port}/healthz`);
+    // eslint-disable-next-line no-console
+    console.log(`  Metrics: http://localhost:${port}/api/metrics`);
+    // eslint-disable-next-line no-console
+    console.warn(
+      '\n  WARNING: Dashboard has NO authentication. Do not expose to untrusted networks.\n' +
+        '  Run behind a reverse proxy with auth, or restrict to localhost.\n',
+    );
   });
 }
+
+// Export for testing
+export { escapeHtml, isValidRunId, RateLimiter };

@@ -3,6 +3,7 @@ import { RecorderContext } from '../context';
 import { EffectEventData, TraceEvent } from '../../core/types';
 import { toEtldPlus1 } from '../canonicalize';
 import { logger } from '../logger';
+import { enforceEffect } from '../enforce';
 
 function now(): number {
   return Date.now();
@@ -43,7 +44,7 @@ function extractFetch(input: any, init?: any): { host: string; method: string; p
         protocol: url.protocol === 'https:' ? 'https' : 'http'
       };
     }
-  } catch (err) {
+  } catch {
     return null;
   }
   return null;
@@ -62,6 +63,7 @@ function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: strin
       }
     };
     ctx.writer.write(buildEvent(ctx, data));
+    enforceEffect(ctx, data);
   } catch (err) {
     logger.debug('fetch-patch', `Failed to record net_outbound for ${host}`, { error: String(err) });
   }

@@ -12,10 +12,16 @@ describe('schema validation', () => {
       const valid = {
         version: 1,
         workspace_root: '.',
+        normalization: {
+          version: '1.0',
+          filesystem: { collapse_temp: true, collapse_home: true, ignore_globs: [] },
+          network: { normalize_hosts: true },
+          exec: { argv_mode: 'hash', mask_patterns: [] },
+        },
         policy: {
-          filesystem: { allow_writes: ['./workspace/**'], block_writes: ['/etc/**'] },
-          network: { allow_etld_plus_1: ['google.com'], allow_hosts: ['*.google.com'] },
-          exec: { allow_commands: ['node'], block_commands: ['rm'] },
+          filesystem: { allow_writes: ['./workspace/**'], block_writes: ['/etc/**'], enforce_allowlist: false },
+          network: { allow_etld_plus_1: ['google.com'], allow_hosts: ['*.google.com'], enforce_allowlist: true },
+          exec: { allow_commands: ['node'], block_commands: ['rm'], enforce_allowlist: true },
           sensitive: { block_env: ['AWS_SECRET_ACCESS_KEY'], block_file_globs: ['~/.ssh/**'] }
         }
       };
@@ -94,6 +100,7 @@ describe('schema validation', () => {
       const valid = {
         meta: {
           signature_version: '1.0',
+          normalization_rules_version: '1.0',
           agentci_version: '0.1.0',
           platform: 'darwin-arm64',
           adapter: 'node-hook',
@@ -118,6 +125,7 @@ describe('schema validation', () => {
       const invalid = {
         meta: {
           signature_version: '1.0',
+          normalization_rules_version: '1.0',
           agentci_version: '0.1.0',
           platform: 'darwin-arm64',
           adapter: 'unknown-adapter',

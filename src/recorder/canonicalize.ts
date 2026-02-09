@@ -63,10 +63,10 @@ function normalizeArg(arg: string): string {
 function safeRealpath(p: string): string | null {
   try {
     return fs.realpathSync.native(p);
-  } catch (err) {
+  } catch {
     try {
       return fs.realpathSync(p);
-    } catch (err2) {
+    } catch {
       return null;
     }
   }

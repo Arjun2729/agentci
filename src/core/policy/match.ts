@@ -15,11 +15,19 @@ export function normalizePathForMatch(p: string): string {
 export function matchPath(globs: string[], candidate: string): boolean {
   if (!globs.length) return false;
   const normalizedCandidate = normalizePathForMatch(candidate);
+  const candidates = [normalizedCandidate];
+  const driveLetterRe = new RegExp('^[A-Za-z]:[\\\\/]');
+  if (path.isAbsolute(candidate) || driveLetterRe.test(candidate)) {
+    const stripped = normalizedCandidate.replace(new RegExp('^[A-Za-z]:/'), '').replace(/^\//, '');
+    if (stripped && stripped !== normalizedCandidate) {
+      candidates.push(stripped);
+    }
+  }
   return globs.some((glob) => {
     const expanded = expandTilde(glob);
     const normalizedGlob = normalizeGlob(expanded.replace(/\\/g, '/'));
     const matcher = picomatch(normalizedGlob, { dot: true, nocase: false });
-    return matcher(normalizedCandidate);
+    return candidates.some((value) => matcher(value));
   });
 }
 
@@ -41,5 +49,13 @@ export function matchHost(patterns: string[], host: string): boolean {
       return normalized.endsWith(suffix);
     }
     return normalized === normalizedPattern;
+  });
+}
+
+export function matchKey(patterns: string[], value: string): boolean {
+  if (!patterns.length) return false;
+  return patterns.some((pattern) => {
+    const matcher = picomatch(pattern, { dot: true, nocase: true });
+    return matcher(value);
   });
 }

@@ -1,0 +1,6 @@
+name: no_dotenv_access
+description: Block reads of .env files anywhere in the repo.
+policy:
+  sensitive:
+    block_file_globs:
+      - "**/.env*"

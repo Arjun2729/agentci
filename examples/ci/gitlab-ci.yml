@@ -1,0 +1,10 @@
+agentci:
+  image: node:20
+  stage: test
+  script:
+    - npm ci
+    - npx agentci init
+    - npx agentci record -- node my_agent.js
+    - RUN_ID=$(ls -t .agentci/runs | head -n1)
+    - npx agentci summarize .agentci/runs/$RUN_ID/trace.jsonl
+    - npx agentci diff .agentci/baseline.json .agentci/runs/$RUN_ID/signature.json --format json

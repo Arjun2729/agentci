@@ -7,18 +7,36 @@ import { z } from 'zod';
 export const PolicyConfigSchema = z.object({
   version: z.number(),
   workspace_root: z.string(),
+  normalization: z.object({
+    version: z.string(),
+    filesystem: z.object({
+      collapse_temp: z.boolean(),
+      collapse_home: z.boolean(),
+      ignore_globs: z.array(z.string()),
+    }),
+    network: z.object({
+      normalize_hosts: z.boolean(),
+    }),
+    exec: z.object({
+      argv_mode: z.enum(['full', 'hash', 'none']),
+      mask_patterns: z.array(z.string()),
+    }),
+  }),
   policy: z.object({
     filesystem: z.object({
       allow_writes: z.array(z.string()),
       block_writes: z.array(z.string()),
+      enforce_allowlist: z.boolean(),
     }),
     network: z.object({
       allow_etld_plus_1: z.array(z.string()),
       allow_hosts: z.array(z.string()),
+      enforce_allowlist: z.boolean(),
     }),
     exec: z.object({
       allow_commands: z.array(z.string()),
       block_commands: z.array(z.string()),
+      enforce_allowlist: z.boolean(),
     }),
     sensitive: z.object({
       block_env: z.array(z.string()),
@@ -38,12 +56,13 @@ export const TraceEventSchema = z.object({
   run_id: z.string(),
   type: z.enum(['lifecycle', 'tool_call', 'tool_result', 'effect']),
   data: z.unknown(),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const EffectSignatureSchema = z.object({
   meta: z.object({
     signature_version: z.literal('1.0'),
+    normalization_rules_version: z.string(),
     agentci_version: z.string(),
     platform: z.string(),
     adapter: z.enum(['node-hook', 'openclaw+node-hook']),

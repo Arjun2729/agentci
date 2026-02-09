@@ -1,0 +1,6 @@
+dist
+node_modules
+coverage
+python
+*.md
+package-lock.json

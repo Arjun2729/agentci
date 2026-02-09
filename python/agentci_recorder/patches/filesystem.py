@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import builtins
+import fnmatch
 import os
 import shutil
 from typing import Any
@@ -42,8 +43,30 @@ def _record_fs(ctx: dict[str, Any], category: str, input_path: str) -> None:
         ctx["writer"].write(
             make_event(ctx["run_id"], "effect", effect_data_to_dict(data))
         )
+        if category == "fs_read":
+            blocked = ctx.get("block_file_globs", [])
+            if _match_blocked_globs(blocked, resolved.resolved_abs):
+                sensitive = EffectEventData(
+                    category="sensitive_access",
+                    kind="observed",
+                    sensitive={"type": "file_read", "key_name": resolved.resolved_abs},
+                )
+                ctx["writer"].write(
+                    make_event(ctx["run_id"], "effect", effect_data_to_dict(sensitive))
+                )
     except Exception as e:
         logger.debug(f"Failed to record fs effect ({category}): {e}")
+
+
+def _match_blocked_globs(patterns: list[str], path_value: str) -> bool:
+    if not patterns:
+        return False
+    normalized = os.path.expanduser(path_value).replace("\\", "/")
+    for pattern in patterns:
+        expanded = os.path.expanduser(pattern).replace("\\", "/")
+        if fnmatch.fnmatchcase(normalized, expanded):
+            return True
+    return False
 
 
 def patch_filesystem(ctx: dict[str, Any]) -> None:
