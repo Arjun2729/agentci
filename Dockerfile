@@ -18,7 +18,9 @@ RUN addgroup -g 1001 agentci && \
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm install -g npm@latest && \
+    npm ci --omit=dev --ignore-scripts && \
+    npm cache clean --force
 
 COPY --from=builder /app/dist dist/
 COPY LICENSE README.md ./
