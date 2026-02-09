@@ -35,22 +35,6 @@ def _load_config_block_env() -> list[str]:
             "GH_*",
             "GITHUB_*",
         ]
-
-
-def _load_config_block_file_globs() -> list[str]:
-    """Best-effort load of block_file_globs from config."""
-    config_path = os.environ.get("AGENTCI_CONFIG_PATH")
-    if not config_path or not os.path.isfile(config_path):
-        return ["~/.ssh/**", "~/.aws/**", "**/.env*"]
-    try:
-        import yaml  # optional dep
-
-        with open(config_path, "r") as f:
-            parsed = yaml.safe_load(f)
-        return parsed.get("policy", {}).get("sensitive", {}).get("block_file_globs", [])
-    except Exception as e:
-        logger.debug(f"Failed to load config: {e}")
-        return ["~/.ssh/**", "~/.aws/**", "**/.env*"]
     try:
         import yaml  # optional dep
 
@@ -74,6 +58,22 @@ def _load_config_block_file_globs() -> list[str]:
             "GH_*",
             "GITHUB_*",
         ]
+
+
+def _load_config_block_file_globs() -> list[str]:
+    """Best-effort load of block_file_globs from config."""
+    config_path = os.environ.get("AGENTCI_CONFIG_PATH")
+    if not config_path or not os.path.isfile(config_path):
+        return ["~/.ssh/**", "~/.aws/**", "**/.env*"]
+    try:
+        import yaml  # optional dep
+
+        with open(config_path, "r") as f:
+            parsed = yaml.safe_load(f)
+        return parsed.get("policy", {}).get("sensitive", {}).get("block_file_globs", [])
+    except Exception as e:
+        logger.debug(f"Failed to load config: {e}")
+        return ["~/.ssh/**", "~/.aws/**", "**/.env*"]
 
 
 def start_recording(

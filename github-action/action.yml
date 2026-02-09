@@ -1,0 +1,101 @@
+name: AgentCI
+description: CI guardrails / regression tests for agent side effects.
+inputs:
+  command:
+    description: Command to run under AgentCI recorder (e.g., "node my_agent.js")
+    required: true
+  baseline:
+    description: Path to baseline signature
+    default: .agentci/baseline.json
+  config:
+    description: Path to config.yaml
+    default: .agentci/config.yaml
+  comment:
+    description: Post a PR comment with summary
+    default: "true"
+  report:
+    description: Generate and upload HTML report
+    default: "true"
+  token:
+    description: GitHub token for commenting
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Record agent run
+      shell: bash
+      run: |
+        npx agentci record -- ${{ inputs.command }}
+
+    - name: Summarize latest run
+      id: summarize
+      shell: bash
+      run: |
+        RUN_ID=$(ls -t .agentci/runs | head -n1)
+        npx agentci summarize .agentci/runs/$RUN_ID/trace.jsonl --config ${{ inputs.config }}
+        echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+
+    - name: Diff against baseline
+      id: diff
+      shell: bash
+      run: |
+        set +e
+        RUN_ID="${{ steps.summarize.outputs.run_id }}"
+        npx agentci diff ${{ inputs.baseline }} .agentci/runs/$RUN_ID/signature.json --config ${{ inputs.config }} --format json > .agentci/runs/$RUN_ID/diff.json
+        echo "exit_code=$?" >> $GITHUB_OUTPUT
+        exit 0
+
+    - name: Generate HTML report
+      if: ${{ inputs.report == 'true' }}
+      shell: bash
+      run: |
+        RUN_ID="${{ steps.summarize.outputs.run_id }}"
+        npx agentci report ${{ inputs.baseline }} .agentci/runs/$RUN_ID/signature.json --trace .agentci/runs/$RUN_ID/trace.jsonl --out .agentci/runs/$RUN_ID/report.html --config ${{ inputs.config }}
+
+    - name: Upload AgentCI report
+      if: ${{ inputs.report == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: agentci-report-${{ steps.summarize.outputs.run_id }}
+        path: .agentci/runs/${{ steps.summarize.outputs.run_id }}/report.html
+
+    - name: Comment on PR
+      if: ${{ inputs.comment == 'true' && inputs.token != '' }}
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          const runId = '${{ steps.summarize.outputs.run_id }}';
+          const diffPath = path.join('.agentci', 'runs', runId, 'diff.json');
+          if (!fs.existsSync(diffPath)) return;
+          const diff = JSON.parse(fs.readFileSync(diffPath, 'utf8'));
+          const summary = diff.summary || {};
+          const status = summary.hasBlock ? 'BLOCK' : summary.hasWarn ? 'WARN' : 'PASS';
+          const drift = diff.drift || {};
+          const line = (label, count) => `- ${label}: ${count}`;
+          const lines = [
+            `AgentCI: **${status}**`,
+            line('New network egress', (drift.net_hosts || []).length),
+            line('New files touched', (drift.fs_writes || []).length),
+            line('New subprocesses', (drift.exec_commands || []).length),
+            line('New env keys accessed', (drift.sensitive_keys_accessed || []).length),
+          ];
+          const body = lines.join('\\n');
+          if (!context.payload.pull_request) return;
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.payload.pull_request.number,
+            body,
+          });
+
+    - name: Fail on policy violation
+      shell: bash
+      run: |
+        if [ "${{ steps.diff.outputs.exit_code }}" != "0" ]; then
+          echo "AgentCI policy violation."
+          exit 1
+        fi

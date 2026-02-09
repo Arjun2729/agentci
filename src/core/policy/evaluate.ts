@@ -72,6 +72,47 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
     }
   }
 
+  const allowProtocols = config.policy.network.allow_protocols.map((value) => value.toLowerCase());
+  const blockProtocols = config.policy.network.block_protocols.map((value) => value.toLowerCase());
+  for (const protocol of signature.effects.net_protocols || []) {
+    const normalized = protocol.toLowerCase();
+    if (blockProtocols.includes(normalized)) {
+      findings.push({
+        severity: 'BLOCK',
+        category: 'network',
+        message: `Network Violation (BLOCK): protocol '${protocol}' is blocked by policy.network.block_protocols`,
+      });
+      continue;
+    }
+    if (allowProtocols.length && !allowProtocols.includes(normalized)) {
+      findings.push({
+        severity: 'BLOCK',
+        category: 'network',
+        message: `Network Violation (BLOCK): protocol '${protocol}' not in allow_protocols`,
+      });
+    }
+  }
+
+  const allowPorts = new Set(config.policy.network.allow_ports);
+  const blockPorts = new Set(config.policy.network.block_ports);
+  for (const port of signature.effects.net_ports || []) {
+    if (blockPorts.has(port)) {
+      findings.push({
+        severity: 'BLOCK',
+        category: 'network',
+        message: `Network Violation (BLOCK): port '${port}' is blocked by policy.network.block_ports`,
+      });
+      continue;
+    }
+    if (allowPorts.size && !allowPorts.has(port)) {
+      findings.push({
+        severity: 'BLOCK',
+        category: 'network',
+        message: `Network Violation (BLOCK): port '${port}' not in allow_ports`,
+      });
+    }
+  }
+
   for (const cmd of signature.effects.exec_commands) {
     if (config.policy.exec.block_commands.includes(cmd)) {
       findings.push({

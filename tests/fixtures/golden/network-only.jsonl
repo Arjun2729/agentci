@@ -1,0 +1,5 @@
+{"id":"evt_001","timestamp":1707300000000,"run_id":"golden-net","type":"lifecycle","data":{"event":"start","agentci_version":"0.1.0"}}
+{"id":"evt_002","timestamp":1707300001000,"run_id":"golden-net","type":"effect","data":{"category":"net_outbound","kind":"observed","net":{"host_raw":"api.openai.com","host_etld_plus_1":"openai.com","method":"POST","protocol":"https"}}}
+{"id":"evt_003","timestamp":1707300002000,"run_id":"golden-net","type":"effect","data":{"category":"net_outbound","kind":"observed","net":{"host_raw":"registry.npmjs.org","host_etld_plus_1":"npmjs.org","method":"GET","protocol":"https"}}}
+{"id":"evt_004","timestamp":1707300003000,"run_id":"golden-net","type":"effect","data":{"category":"net_outbound","kind":"observed","net":{"host_raw":"example.com","host_etld_plus_1":"example.com","method":"GET","protocol":"http","port":8080}}}
+{"id":"evt_005","timestamp":1707300004000,"run_id":"golden-net","type":"lifecycle","data":{"event":"stop"}}

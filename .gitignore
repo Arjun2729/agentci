@@ -1,8 +1,10 @@
 node_modules
 /dist
 /.agentci
-# Defense-in-depth: block secret even if .agentci/ is force-added
+# Defense-in-depth: block secret and license even if .agentci/ is force-added
 .agentci/secret
+.agentci/license
+.agentci/remote.json
 /coverage
 .DS_Store
 *.log

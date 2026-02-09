@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import path from 'path';
 import { PolicyConfig } from './types';
-import { matchPath, normalizePathForMatch } from './policy/match';
+import { matchHost, matchPath, normalizePathForMatch } from './policy/match';
 
 const DEFAULT_MASK_PATTERNS = [
   'sk-[A-Za-z0-9]{10,}',
@@ -57,6 +57,16 @@ function collapseHome(pathValue: string): string {
   return normalizedValue;
 }
 
+function hashValue(value: string): string {
+  const hash = crypto.createHash('sha256').update(value).digest('hex');
+  return `<hash:${hash}>`;
+}
+
+function applyRedaction(value: string, label: string, hashValues: boolean): string {
+  if (hashValues) return hashValue(value);
+  return `<redacted:${label}>`;
+}
+
 export function normalizeFsPath(value: string, config: PolicyConfig): string | null {
   if (!value) return null;
   const normalized = normalizePathForMatch(value.replace(/\\/g, '/'));
@@ -65,6 +75,10 @@ export function normalizeFsPath(value: string, config: PolicyConfig): string | n
 
   if (matchPath(config.normalization.filesystem.ignore_globs, collapsedHome)) {
     return null;
+  }
+
+  if (config.redaction.redact_paths.length && matchPath(config.redaction.redact_paths, collapsedHome)) {
+    return applyRedaction(collapsedHome, 'path', config.redaction.hash_values);
   }
 
   return collapsedHome;
@@ -88,6 +102,10 @@ export function normalizeHost(host: string, config: PolicyConfig): string {
 
   if (/^[^:]+:\d+$/.test(value)) {
     value = value.split(':')[0];
+  }
+
+  if (config.redaction.redact_urls.length && matchHost(config.redaction.redact_urls, value)) {
+    return applyRedaction(value, 'host', config.redaction.hash_values);
   }
 
   return value;

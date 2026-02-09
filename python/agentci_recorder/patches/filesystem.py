@@ -82,22 +82,22 @@ def patch_filesystem(ctx: dict[str, Any]) -> None:
         return _original_open(file, mode, *args, **kwargs)
 
     def patched_remove(path: Any, *args: Any, **kwargs: Any) -> Any:
-        result = _original_remove(path, *args, **kwargs)
         if not ctx["state"]["bypass"]:
             _record_fs(ctx, "fs_delete", str(path))
+        result = _original_remove(path, *args, **kwargs)
         return result
 
     def patched_unlink(path: Any, *args: Any, **kwargs: Any) -> Any:
-        result = _original_unlink(path, *args, **kwargs)
         if not ctx["state"]["bypass"]:
             _record_fs(ctx, "fs_delete", str(path))
+        result = _original_unlink(path, *args, **kwargs)
         return result
 
     def patched_rename(src: Any, dst: Any, *args: Any, **kwargs: Any) -> Any:
-        result = _original_rename(src, dst, *args, **kwargs)
         if not ctx["state"]["bypass"]:
             _record_fs(ctx, "fs_delete", str(src))
             _record_fs(ctx, "fs_write", str(dst))
+        result = _original_rename(src, dst, *args, **kwargs)
         return result
 
     def patched_makedirs(name: Any, *args: Any, **kwargs: Any) -> Any:

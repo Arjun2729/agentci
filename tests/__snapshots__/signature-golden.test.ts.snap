@@ -1,0 +1,125 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden signature tests > snapshot: all golden signatures match 1`] = `
+{
+  "edge-cases": {
+    "exec_argv": [
+      "["/usr/local/bin/node","<argv_hash:dbf17980b8eb13f5849daf5c7c6aedde6835e73b9458575c227e2ac6f5a9c8bf>","<argv_len:1>"]",
+    ],
+    "exec_commands": [
+      "node",
+    ],
+    "fs_deletes": [],
+    "fs_reads_external": [],
+    "fs_writes": [
+      "src/héllo wörld.ts",
+    ],
+    "net_etld_plus_1": [
+      "example.com",
+    ],
+    "net_hosts": [
+      "this-is-a-really-long-hostname-that-tests-boundary-conditions.example.com",
+    ],
+    "net_ports": [
+      443,
+    ],
+    "net_protocols": [
+      "https",
+    ],
+    "sensitive_keys_accessed": [],
+  },
+  "exec-only": {
+    "exec_argv": [
+      "["git","<argv_hash:681a8f3ba01ca51a34f842d90904de6a88231b8db1349b4af1450748192ecb06>","<argv_len:2>"]",
+      "["node","<argv_hash:bf39b550f5b17b9fc3c62803156bb43a417ab07f0e6dcb678db4cbbdee0b20e5>","<argv_len:2>"]",
+      "["npm","<argv_hash:933dae8da8564619c576eea763fe01e473d1d76ed6b1b05abe79c79763027d90>","<argv_len:3>"]",
+    ],
+    "exec_commands": [
+      "git",
+      "node",
+      "npm",
+    ],
+    "fs_deletes": [],
+    "fs_reads_external": [],
+    "fs_writes": [],
+    "net_etld_plus_1": [],
+    "net_hosts": [],
+    "net_ports": [],
+    "net_protocols": [],
+    "sensitive_keys_accessed": [],
+  },
+  "fs-only": {
+    "exec_argv": [],
+    "exec_commands": [],
+    "fs_deletes": [
+      "tmp/cache.json",
+    ],
+    "fs_reads_external": [
+      "/etc/passwd",
+    ],
+    "fs_writes": [
+      "src/index.ts",
+      "src/utils.ts",
+    ],
+    "net_etld_plus_1": [],
+    "net_hosts": [],
+    "net_ports": [],
+    "net_protocols": [],
+    "sensitive_keys_accessed": [],
+  },
+  "mixed": {
+    "exec_argv": [
+      "["npm","<argv_hash:7a29c2fdc8eda277850f4fd0624e62e0670ca1812a756e92aafa47fab71164f2>","<argv_len:2>"]",
+    ],
+    "exec_commands": [
+      "npm",
+    ],
+    "fs_deletes": [],
+    "fs_reads_external": [],
+    "fs_writes": [
+      "src/app.ts",
+    ],
+    "net_etld_plus_1": [
+      "openai.com",
+    ],
+    "net_hosts": [
+      "api.openai.com",
+    ],
+    "net_ports": [
+      443,
+    ],
+    "net_protocols": [
+      "https",
+    ],
+    "sensitive_keys_accessed": [
+      "OPENAI_API_KEY",
+    ],
+  },
+  "network-only": {
+    "exec_argv": [],
+    "exec_commands": [],
+    "fs_deletes": [],
+    "fs_reads_external": [],
+    "fs_writes": [],
+    "net_etld_plus_1": [
+      "example.com",
+      "npmjs.org",
+      "openai.com",
+    ],
+    "net_hosts": [
+      "api.openai.com",
+      "example.com",
+      "registry.npmjs.org",
+    ],
+    "net_ports": [
+      443,
+      8080,
+    ],
+    "net_protocols": [
+      "http",
+      "https",
+    ],
+    "sensitive_keys_accessed": [],
+  },
+}
+`;

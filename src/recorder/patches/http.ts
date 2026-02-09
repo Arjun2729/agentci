@@ -21,28 +21,55 @@ function buildEvent(ctx: RecorderContext, data: EffectEventData): TraceEvent {
   };
 }
 
-function extractHost(options: any): { host: string; method: string } | null {
+function splitHostPort(value: string): { host: string; port?: number } {
+  if (value.startsWith('[')) {
+    const closing = value.indexOf(']');
+    if (closing !== -1) {
+      const host = value.slice(0, closing + 1);
+      const rest = value.slice(closing + 1);
+      if (rest.startsWith(':')) {
+        const port = Number(rest.slice(1));
+        return Number.isFinite(port) ? { host, port } : { host };
+      }
+      return { host };
+    }
+  }
+  const parts = value.split(':');
+  if (parts.length === 2) {
+    const port = Number(parts[1]);
+    if (Number.isFinite(port)) {
+      return { host: parts[0], port };
+    }
+  }
+  return { host: value };
+}
+
+function extractHost(options: any): { host: string; method: string; port?: number } | null {
   if (!options) return null;
   if (typeof options === 'string') {
     try {
       const url = new URL(options);
-      return { host: url.hostname, method: 'GET' };
+      const port = url.port ? Number(url.port) : undefined;
+      return { host: url.hostname, method: 'GET', port };
     } catch {
       return null;
     }
   }
   if (options instanceof URL) {
-    return { host: options.hostname, method: (options as any).method || 'GET' };
+    const port = options.port ? Number(options.port) : undefined;
+    return { host: options.hostname, method: (options as any).method || 'GET', port };
   }
   const host = options.hostname || options.host;
   if (!host) return null;
   const hostStr = String(host);
   // Guard against malicious objects with huge toString() or non-string types
   if (hostStr.length > 253) return null; // Max DNS hostname length
-  return { host: hostStr.split(':')[0], method: String(options.method || 'GET') };
+  const parsed = splitHostPort(hostStr);
+  const port = options.port ? Number(options.port) : parsed.port;
+  return { host: parsed.host, method: String(options.method || 'GET'), port: Number.isFinite(port) ? port : undefined };
 }
 
-function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: string, method: string) {
+function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: string, method: string, port?: number) {
   try {
     const data: EffectEventData = {
       category: 'net_outbound',
@@ -51,7 +78,8 @@ function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: strin
         host_raw: host,
         host_etld_plus_1: toEtldPlus1(host),
         method,
-        protocol
+        protocol,
+        port
       }
     };
     ctx.writer.write(buildEvent(ctx, data));
@@ -68,7 +96,7 @@ export function patchHttp(ctx: RecorderContext): void {
   http.request = function (options: any, callback?: any) {
     if (!ctx.state.bypass) {
       const info = extractHost(options);
-      if (info) recordNet(ctx, 'http', info.host, info.method);
+      if (info) recordNet(ctx, 'http', info.host, info.method, info.port);
     }
     return originalHttpRequest.call(http, options as any, callback as any);
   } as typeof http.request;
@@ -76,7 +104,7 @@ export function patchHttp(ctx: RecorderContext): void {
   https.request = function (options: any, callback?: any) {
     if (!ctx.state.bypass) {
       const info = extractHost(options);
-      if (info) recordNet(ctx, 'https', info.host, info.method);
+      if (info) recordNet(ctx, 'https', info.host, info.method, info.port);
     }
     return originalHttpsRequest.call(https, options as any, callback as any);
   } as typeof https.request;

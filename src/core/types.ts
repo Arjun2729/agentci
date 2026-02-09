@@ -21,6 +21,7 @@ export interface NetEffectData {
   host_etld_plus_1: string;
   method: string;
   protocol: 'http' | 'https';
+  port?: number;
 }
 
 export interface ExecEffectData {
@@ -65,8 +66,10 @@ export interface EffectSignature {
     fs_writes: string[];
     fs_reads_external: string[];
     fs_deletes: string[];
+    net_protocols: string[];
     net_etld_plus_1: string[];
     net_hosts: string[];
+    net_ports: number[];
     exec_commands: string[];
     exec_argv: string[];
     sensitive_keys_accessed: string[];
@@ -91,6 +94,11 @@ export interface PolicyConfig {
       mask_patterns: string[];
     };
   };
+  redaction: {
+    redact_paths: string[];
+    redact_urls: string[];
+    hash_values: boolean;
+  };
   policy: {
     filesystem: {
       allow_writes: string[];
@@ -101,6 +109,10 @@ export interface PolicyConfig {
       allow_etld_plus_1: string[];
       allow_hosts: string[];
       enforce_allowlist: boolean;
+      allow_protocols: string[];
+      block_protocols: string[];
+      allow_ports: number[];
+      block_ports: number[];
     };
     exec: {
       allow_commands: string[];
@@ -131,8 +143,10 @@ export interface DriftResult {
   fs_writes: string[];
   fs_reads_external: string[];
   fs_deletes: string[];
+  net_protocols: string[];
   net_etld_plus_1: string[];
   net_hosts: string[];
+  net_ports: number[];
   exec_commands: string[];
   exec_argv: string[];
   sensitive_keys_accessed: string[];

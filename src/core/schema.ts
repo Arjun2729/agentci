@@ -22,6 +22,11 @@ export const PolicyConfigSchema = z.object({
       mask_patterns: z.array(z.string()),
     }),
   }),
+  redaction: z.object({
+    redact_paths: z.array(z.string()),
+    redact_urls: z.array(z.string()),
+    hash_values: z.boolean(),
+  }),
   policy: z.object({
     filesystem: z.object({
       allow_writes: z.array(z.string()),
@@ -32,6 +37,10 @@ export const PolicyConfigSchema = z.object({
       allow_etld_plus_1: z.array(z.string()),
       allow_hosts: z.array(z.string()),
       enforce_allowlist: z.boolean(),
+      allow_protocols: z.array(z.string()),
+      block_protocols: z.array(z.string()),
+      allow_ports: z.array(z.number()),
+      block_ports: z.array(z.number()),
     }),
     exec: z.object({
       allow_commands: z.array(z.string()),
@@ -73,8 +82,10 @@ export const EffectSignatureSchema = z.object({
     fs_writes: z.array(z.string()),
     fs_reads_external: z.array(z.string()),
     fs_deletes: z.array(z.string()),
+    net_protocols: z.array(z.string()),
     net_etld_plus_1: z.array(z.string()),
     net_hosts: z.array(z.string()),
+    net_ports: z.array(z.number()),
     exec_commands: z.array(z.string()),
     exec_argv: z.array(z.string()),
     sensitive_keys_accessed: z.array(z.string()),

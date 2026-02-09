@@ -1,0 +1,5 @@
+{"id":"evt_001","timestamp":1707300000000,"run_id":"golden-edge","type":"lifecycle","data":{"event":"start","agentci_version":"0.1.0"}}
+{"id":"evt_002","timestamp":1707300001000,"run_id":"golden-edge","type":"effect","data":{"category":"fs_write","kind":"observed","fs":{"path_requested":"./src/héllo wörld.ts","path_resolved":"./src/héllo wörld.ts","is_workspace_local":true}}}
+{"id":"evt_003","timestamp":1707300002000,"run_id":"golden-edge","type":"effect","data":{"category":"net_outbound","kind":"observed","net":{"host_raw":"this-is-a-really-long-hostname-that-tests-boundary-conditions.example.com","host_etld_plus_1":"example.com","method":"GET","protocol":"https"}}}
+{"id":"evt_004","timestamp":1707300003000,"run_id":"golden-edge","type":"effect","data":{"category":"exec","kind":"observed","exec":{"command_raw":"/usr/local/bin/node","argv_normalized":["/usr/local/bin/node"]}}}
+{"id":"evt_005","timestamp":1707300004000,"run_id":"golden-edge","type":"lifecycle","data":{"event":"stop"}}

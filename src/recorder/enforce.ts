@@ -53,6 +53,27 @@ function shouldBlock(ctx: RecorderContext, data: EffectEventData): string | null
       if (!hostAllowed && !allowedEtlds.includes(etld) && (ctx.config.policy.network.enforce_allowlist || hasAllowlist)) {
         return `host '${host}' (eTLD+1: ${etld}) not allowed by policy`;
       }
+      const protocol = data.net.protocol.toLowerCase();
+      const allowProtocols = ctx.config.policy.network.allow_protocols.map((value) => value.toLowerCase());
+      const blockProtocols = ctx.config.policy.network.block_protocols.map((value) => value.toLowerCase());
+      if (blockProtocols.includes(protocol)) {
+        return `protocol '${data.net.protocol}' is blocked by policy`;
+      }
+      if (allowProtocols.length && !allowProtocols.includes(protocol)) {
+        return `protocol '${data.net.protocol}' not in allow_protocols`;
+      }
+      const port =
+        typeof data.net.port === 'number'
+          ? data.net.port
+          : data.net.protocol === 'https'
+            ? 443
+            : 80;
+      if (ctx.config.policy.network.block_ports.includes(port)) {
+        return `port '${port}' is blocked by policy`;
+      }
+      if (ctx.config.policy.network.allow_ports.length && !ctx.config.policy.network.allow_ports.includes(port)) {
+        return `port '${port}' not in allow_ports`;
+      }
       return null;
     }
     case 'exec': {

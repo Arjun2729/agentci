@@ -31,15 +31,19 @@ $ agentci diff .agentci/baseline.json .agentci/runs/latest/signature.json
 Exit code: 1 (policy violation)
 ```
 
-## Why
+## What Problem This Solves
 
 AI agents write files, call APIs, run shell commands, and access secrets. Today you find out what they did by reading the git diff *after the fact* — if you're lucky.
 
 AgentCI records every side-effect as it happens, produces a stable **Effect Signature** you can diff across runs, and checks it against your policy. Think `strace` for AI agents, with opinions.
 
+This turns agent side effects into a CI‑friendly regression test: baseline once, diff on every PR.
+
 **What it is not:** AgentCI does not capture LLM prompts, completions, or internal reasoning. It records *observable actions only* — the things that actually change your system.
 
 **Also not a sandbox:** AgentCI detects and fails fast on common runtime paths. It is **not** a kernel-level security sandbox.
+
+**Hero workflow:** baseline → PR diff → policy verdict.
 
 ## Install
 
@@ -51,7 +55,7 @@ npm install agentci
 pip install agentci-recorder
 ```
 
-## 60-Second Quickstart
+## 5-Minute Quickstart
 
 ```bash
 # 1. Initialize config + secret
@@ -76,6 +80,18 @@ Exit code `1` means a policy violation was found. Use it in CI to gate agent-gen
 
 Use `agentci record --enforce` to fail immediately on policy violations during execution.
 
+## What a Failing PR Looks Like
+
+Example PR comment (from the GitHub Action):
+
+```
+AgentCI: BLOCK
+- New network egress: 1
+- New files touched: 2
+- New subprocesses: 1
+- New env keys accessed: 0
+```
+
 ## What Gets Recorded
 
 | Category | Node.js | Python | Examples |
@@ -83,11 +99,25 @@ Use `agentci record --enforce` to fail immediately on policy violations during e
 | **File writes** | `fs.writeFileSync`, `fs.appendFile`, ... | `open(..., 'w')`, `os.rename`, ... | `wrote ./src/index.ts` |
 | **File reads** | `fs.readFileSync`, `fs.readFile`, ... | `open(..., 'r')` | `read ~/.aws/credentials` |
 | **File deletes** | `fs.unlinkSync`, `fs.rmSync`, ... | `os.remove`, `shutil.rmtree`, ... | `deleted ./temp/cache` |
-| **Network** | `http.request`, `https.get`, `fetch` | `urllib`, `http.client` | `GET https → api.openai.com` |
+| **Network** | `http.request`, `https.get`, `fetch`, `undici` | `urllib`, `http.client`, `requests` | `GET https → api.openai.com` |
 | **Shell commands** | `child_process.spawn/exec/fork` | `subprocess.Popen/run` | `exec: npm install express` |
 | **Sensitive access** | `process.env` reads | `os.environ` reads | `accessed OPENAI_API_KEY` |
 
 AgentCI records **metadata only** — file paths, hostnames, command names. It never captures file contents, HTTP bodies, or secret values.
+
+## Privacy + Redaction
+
+Redaction controls live in config:
+
+```yaml
+redaction:
+  redact_paths: ["**/secrets/**"]
+  redact_urls: ["*.internal.example.com"]
+  hash_values: false
+```
+
+`redact_urls` matches hostnames (e.g., `*.internal.example.com`).
+When redaction matches, AgentCI replaces values with `<redacted:...>` (or a stable hash if `hash_values: true`).
 
 ## Policy Configuration
 
@@ -107,6 +137,10 @@ normalization:
   exec:
     argv_mode: "hash"
     mask_patterns: []
+redaction:
+  redact_paths: []
+  redact_urls: []
+  hash_values: false
 policy:
   filesystem:
     allow_writes: ["./workspace/**", "./tmp/**"]
@@ -116,6 +150,10 @@ policy:
     allow_etld_plus_1: []
     allow_hosts: []
     enforce_allowlist: true
+    allow_protocols: []
+    block_protocols: []
+    allow_ports: []
+    block_ports: []
   exec:
     allow_commands: ["git", "ls", "echo", "node", "npm"]
     block_commands: ["rm", "curl", "wget"]
@@ -129,6 +167,12 @@ Policy findings have three severities:
 - **INFO** — new behavior, noted but allowed
 - **WARN** — potentially concerning, review recommended
 - **BLOCK** — policy violation, exit code 1
+
+**Allowlist behavior note:** network enforcement triggers if `policy.network.allow_hosts` or `allow_etld_plus_1` is non‑empty, even when `enforce_allowlist: false`. This prevents partially configured allowlists from silently allowing new egress.
+
+`policy.sensitive.block_env` supports glob patterns (default) and regex via `re:<pattern>`.
+
+Network protocol and port controls live under `policy.network.allow_protocols`, `block_protocols`, `allow_ports`, and `block_ports`.
 
 ## Commands
 
@@ -154,7 +198,26 @@ Policy findings have three severities:
 
 Use `--format json` on `diff`, `evaluate`, and `verify` for machine-readable CI output.
 
-## Policy Packs
+### Command Examples
+
+- `agentci init`
+- `agentci record -- node my_agent.js`
+- `agentci summarize .agentci/runs/<run_id>/trace.jsonl`
+- `agentci diff .agentci/baseline.json .agentci/runs/<run_id>/signature.json --format json`
+- `agentci evaluate .agentci/runs/<run_id>/signature.json`
+- `agentci report .agentci/baseline.json .agentci/runs/<run_id>/signature.json --trace .agentci/runs/<run_id>/trace.jsonl`
+- `agentci attest .agentci/baseline.json .agentci/runs/<run_id>/signature.json`
+- `agentci verify .agentci/runs/<run_id>/trace.jsonl --signature .agentci/runs/<run_id>/signature.json`
+- `agentci baseline create .agentci/runs/<run_id>`
+- `agentci baseline approve --by "alice" --reason "reviewed" --pr "https://..."`
+- `agentci baseline status`
+- `agentci policy list`
+- `agentci policy show no_new_egress`
+- `agentci policy apply no_new_egress`
+- `agentci serve --dir .agentci/runs --port 8787`
+- `agentci dashboard --dir .agentci/runs --port 8788`
+
+## Policy Recipes
 
 Bundled packs live in `policy-packs/`. Apply them like this:
 
@@ -162,6 +225,12 @@ Bundled packs live in `policy-packs/`. Apply them like this:
 agentci policy list
 agentci policy apply no_new_egress
 ```
+
+Available packs:
+- `no_new_egress`
+- `no_secret_env_reads`
+- `no_dotenv_access`
+- `subprocess_allowlist_only`
 
 ## Python Recorder
 
@@ -182,14 +251,30 @@ stop_recording(ctx)
 agentci summarize .agentci/runs/my-run/trace.jsonl
 ```
 
-## Use in CI
+## CI Integration
+
+### GitHub Action
 
 ```yaml
-# .github/workflows/agent-check.yml
-- name: Check agent behavior
-  run: |
-    agentci diff .agentci/baseline.json .agentci/runs/$RUN_ID/signature.json
-    # Fails the job if the agent did something outside policy
+# .github/workflows/agentci.yml
+- name: AgentCI
+  uses: ./github-action
+  with:
+    command: "node my_agent.js"
+    baseline: .agentci/baseline.json
+    config: .agentci/config.yaml
+    token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+If you publish the action separately, reference it as `<org>/<repo>/github-action@<tag>`.
+See `github-action/README.md` for inputs.
+
+### Raw CLI (any CI)
+
+```bash
+agentci record -- node my_agent.js
+agentci summarize .agentci/runs/$RUN_ID/trace.jsonl
+agentci diff .agentci/baseline.json .agentci/runs/$RUN_ID/signature.json --format json
 ```
 
 See `examples/ci/` for GitHub Actions, GitLab CI, CircleCI, and Buildkite templates.
@@ -202,7 +287,7 @@ AgentCI writes [JSONL](https://jsonlines.org/) — one JSON object per line, app
 {"id":"evt_01","timestamp":1707300000000,"run_id":"abc123","type":"effect","data":{"category":"fs_write","kind":"observed","fs":{"path_requested":"./src/index.ts","path_resolved":"/home/user/project/src/index.ts","is_workspace_local":true}}}
 ```
 
-Traces are signed with HMAC-SHA256 on close. Use `agentci verify` to confirm a trace hasn't been modified.
+Traces and signatures are signed with HMAC-SHA256 on close. Use `agentci verify --signature <path>` to confirm integrity.
 
 ## Architecture
 
@@ -216,7 +301,7 @@ your-agent  →  agentci recorder (runtime patches)  →  trace.jsonl
 
 The recorder uses `--require` (Node.js) or stdlib monkey-patching (Python) to intercept side-effects at runtime. No kernel hooks, no eBPF, no containers. Works anywhere Node or Python runs.
 
-## Security Model
+## Threat Model + Limitations
 
 AgentCI is an **observability tool, not a sandbox**. It records side-effects for audit and policy enforcement, but it cannot prevent a determined agent from performing actions.
 
@@ -318,6 +403,24 @@ docker run -p 127.0.0.1:8788:8788 -v $(pwd)/.agentci:/data/.agentci agentci
 - **No Windows permission enforcement:** On FAT/NTFS filesystems, POSIX file permissions (used for the secret file) may not be enforced.
 
 See `docs/coverage.md` for a full coverage/bypass matrix.
+
+## Design Philosophy
+
+AgentCI is built on five beliefs:
+
+1. **Record what agents do, not what they think.** Observable side-effects (files, network, processes, secrets) are the audit surface. LLM internals are out of scope.
+2. **Metadata is enough.** File paths, hostnames, and command names tell the story. Contents, bodies, and values create risk without proportional benefit.
+3. **Never break the thing you're watching.** Recorder failures degrade to "no recording," never to "app crash." Fail open, always.
+4. **Work locally, offline, with no accounts.** Every core feature runs on a single machine with no network. Cloud features are additive, never required.
+5. **Policy as code, diffs as tests.** Side-effect baselines are version-controlled artifacts. Drift is a CI signal, not a dashboard metric.
+
+AgentCI deliberately does **not**:
+- Capture LLM prompts, completions, or reasoning traces ([ADR-003](docs/adr/003-no-llm-capture.md))
+- Provide kernel-level sandboxing or syscall filtering ([ADR-002](docs/adr/002-no-sandbox.md))
+- Require a database, cloud account, or external service ([ADR-005](docs/adr/005-local-first-default.md), [ADR-007](docs/adr/007-filesystem-storage.md))
+- Auto-rollback on policy violations — detection only, never mutation ([ADR-002](docs/adr/002-no-sandbox.md))
+
+See [docs/adr/](docs/adr/) for all architectural decisions.
 
 ## Development
 

@@ -29,6 +29,11 @@ export function defaultConfig(workspaceRoot: string): PolicyConfig {
         mask_patterns: [],
       },
     },
+    redaction: {
+      redact_paths: [],
+      redact_urls: [],
+      hash_values: false,
+    },
     policy: {
       filesystem: {
         allow_writes: ['./workspace/**', './tmp/**'],
@@ -38,7 +43,11 @@ export function defaultConfig(workspaceRoot: string): PolicyConfig {
       network: {
         allow_etld_plus_1: [],
         allow_hosts: [],
-        enforce_allowlist: true
+        enforce_allowlist: true,
+        allow_protocols: [],
+        block_protocols: [],
+        allow_ports: [],
+        block_ports: []
       },
       exec: {
         allow_commands: ['git', 'ls', 'echo', 'node', 'npm'],
@@ -86,6 +95,11 @@ export function loadConfig(configPath: string | undefined, workspaceRootFallback
     ? path.resolve(workspaceRootFallback, parsed.workspace_root)
     : workspaceRootFallback;
 
+  const redactionParsed = parsed?.redaction ?? {};
+  if (redactionParsed.redact_hosts && !redactionParsed.redact_urls) {
+    redactionParsed.redact_urls = redactionParsed.redact_hosts;
+  }
+
   const merged = {
     ...defaultConfig(workspaceRoot),
     ...parsed,
@@ -105,6 +119,10 @@ export function loadConfig(configPath: string | undefined, workspaceRootFallback
         ...defaultConfig(workspaceRoot).normalization.exec,
         ...(parsed?.normalization?.exec ?? {}),
       },
+    },
+    redaction: {
+      ...defaultConfig(workspaceRoot).redaction,
+      ...redactionParsed,
     },
     policy: {
       ...defaultConfig(workspaceRoot).policy,

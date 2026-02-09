@@ -16,8 +16,10 @@ const base: EffectSignature = {
     fs_writes: ['a.txt'],
     fs_reads_external: [],
     fs_deletes: [],
+    net_protocols: ['https'],
     net_etld_plus_1: ['example.com'],
     net_hosts: ['api.example.com'],
+    net_ports: [443],
     exec_commands: ['node'],
     exec_argv: ['["node","script.js"]'],
     sensitive_keys_accessed: []

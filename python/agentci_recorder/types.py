@@ -29,6 +29,7 @@ class NetEffectData:
     host_etld_plus_1: str
     method: str
     protocol: Literal["http", "https"]
+    port: Optional[int] = None
 
 
 @dataclass

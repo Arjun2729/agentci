@@ -8,7 +8,7 @@ Recorded:
 - Filesystem: `fs.writeFile*`, `fs.appendFile*`, `fs.mkdir*`, `fs.readFile*`, `fs.unlink*`, `fs.rm*`, `fs.rename*`
 - Filesystem (promises): `fs.promises.writeFile`, `appendFile`, `mkdir`, `readFile`, `unlink`, `rm`, `rename`
 - Subprocess: `child_process.spawn`, `exec`, `execFile`, `fork`, `execSync`, `spawnSync`, `execFileSync`
-- Network: `http.request`, `https.request`, global `fetch`
+- Network: `http.request`, `https.request`, global `fetch`, `undici.request`, `undici.fetch` (if available)
 - Sensitive env: `process.env` access for configured keys
 
 Not recorded (examples):
@@ -21,7 +21,7 @@ Not recorded (examples):
 
 Recorded:
 - Filesystem: `open()`, `os.remove`, `os.unlink`, `os.rename`, `os.makedirs`, `os.mkdir`, `shutil.rmtree`
-- Network: `urllib.request.urlopen`, `http.client.HTTPConnection.request`, `HTTPSConnection.request`
+- Network: `urllib.request.urlopen`, `http.client.HTTPConnection.request`, `HTTPSConnection.request`, `requests.Session.request` (if installed)
 - Subprocess: `subprocess.Popen`, `subprocess.run`
 - Sensitive env: `os.environ` access for configured keys
 - Sensitive file reads: `.env`/blocked globs when `open()` is used

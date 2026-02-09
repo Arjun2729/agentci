@@ -7,6 +7,7 @@ import { patchFs } from './patches/fs';
 import { patchChildProcess } from './patches/child_process';
 import { patchHttp } from './patches/http';
 import { patchFetch } from './patches/fetch';
+import { patchUndici } from './patches/undici';
 import { loadConfig } from '../core/policy/config';
 import { TraceEvent } from '../core/types';
 import { matchKey } from '../core/policy/match';
@@ -161,6 +162,8 @@ function initRecorder(): void {
     logger.debug('register', 'Patched http/https');
     patchFetch(ctx);
     logger.debug('register', 'Patched fetch');
+    patchUndici(ctx);
+    logger.debug('register', 'Patched undici');
   } catch (err) {
     logger.error('register', 'Failed to apply patches', { error: String(err) });
     writer.write(buildLifecycle(ctx, 'error', { error: String(err) }));

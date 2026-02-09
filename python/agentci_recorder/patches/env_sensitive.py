@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import re
 import os
 from typing import Any
 
@@ -43,7 +44,16 @@ class _SensitiveEnvProxy:
     def _is_blocked(self, key: str) -> bool:
         patterns = object.__getattribute__(self, "_blocked")
         lowered = key.lower()
-        return any(fnmatch.fnmatchcase(lowered, pattern) for pattern in patterns)
+        for pattern in patterns:
+            if pattern.startswith("re:"):
+                try:
+                    if re.search(pattern[3:], lowered, re.IGNORECASE):
+                        return True
+                except Exception:
+                    continue
+            if fnmatch.fnmatchcase(lowered, pattern):
+                return True
+        return False
 
     def __getitem__(self, key: str) -> str:
         if self._is_blocked(key):

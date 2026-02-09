@@ -16,8 +16,15 @@ export function diffSignatures(
       baseline?.effects.fs_reads_external ?? null
     ),
     fs_deletes: diffSet(current.effects.fs_deletes, baseline?.effects.fs_deletes ?? null),
+    net_protocols: diffSet(current.effects.net_protocols ?? [], baseline?.effects.net_protocols ?? null),
     net_etld_plus_1: diffSet(current.effects.net_etld_plus_1, baseline?.effects.net_etld_plus_1 ?? null),
     net_hosts: diffSet(current.effects.net_hosts, baseline?.effects.net_hosts ?? null),
+    net_ports: diffSet(
+      (current.effects.net_ports ?? []).map(String),
+      baseline?.effects.net_ports?.map(String) ?? null
+    )
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value)),
     exec_commands: diffSet(current.effects.exec_commands, baseline?.effects.exec_commands ?? null),
     exec_argv: diffSet(current.effects.exec_argv, baseline?.effects.exec_argv ?? null),
     sensitive_keys_accessed: diffSet(

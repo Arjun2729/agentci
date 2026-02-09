@@ -1,0 +1,7 @@
+{"id":"evt_001","timestamp":1707300000000,"run_id":"golden-mixed","type":"lifecycle","data":{"event":"start","agentci_version":"0.1.0"}}
+{"id":"evt_002","timestamp":1707300001000,"run_id":"golden-mixed","type":"effect","data":{"category":"fs_write","kind":"observed","fs":{"path_requested":"./src/app.ts","path_resolved":"./src/app.ts","is_workspace_local":true}}}
+{"id":"evt_003","timestamp":1707300002000,"run_id":"golden-mixed","type":"effect","data":{"category":"net_outbound","kind":"observed","net":{"host_raw":"api.openai.com","host_etld_plus_1":"openai.com","method":"POST","protocol":"https"}}}
+{"id":"evt_004","timestamp":1707300003000,"run_id":"golden-mixed","type":"effect","data":{"category":"exec","kind":"observed","exec":{"command_raw":"npm","argv_normalized":["npm","test"]}}}
+{"id":"evt_005","timestamp":1707300004000,"run_id":"golden-mixed","type":"effect","data":{"category":"sensitive_access","kind":"observed","sensitive":{"type":"env_var","key_name":"OPENAI_API_KEY"}}}
+{"id":"evt_006","timestamp":1707300005000,"run_id":"golden-mixed","type":"effect","data":{"category":"fs_read","kind":"observed","fs":{"path_requested":"./package.json","path_resolved":"./package.json","is_workspace_local":true}}}
+{"id":"evt_007","timestamp":1707300006000,"run_id":"golden-mixed","type":"lifecycle","data":{"event":"stop"}}

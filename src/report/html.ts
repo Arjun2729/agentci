@@ -219,6 +219,14 @@ export function generateReportHtml(input: ReportInput): string {
           id: 'drift-net-hosts',
           evidence: traceEvidence(input.diff.drift.net_hosts),
         })}
+        ${renderList('New Network Protocols', input.diff.drift.net_protocols, {
+          id: 'drift-net-protocols',
+          evidence: traceEvidence(input.diff.drift.net_protocols),
+        })}
+        ${renderList('New Network Ports', input.diff.drift.net_ports.map(String), {
+          id: 'drift-net-ports',
+          evidence: traceEvidence(input.diff.drift.net_ports.map(String)),
+        })}
         ${renderList('New eTLD+1', input.diff.drift.net_etld_plus_1, {
           id: 'drift-net-etld',
           evidence: traceEvidence(input.diff.drift.net_etld_plus_1),

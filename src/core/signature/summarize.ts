@@ -9,6 +9,10 @@ function sorted(values: Set<string>): string[] {
   return Array.from(values).filter(Boolean).sort();
 }
 
+function sortedNumbers(values: Set<number>): number[] {
+  return Array.from(values).filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+}
+
 function detectAdapter(events: TraceEvent[]): 'node-hook' | 'openclaw+node-hook' {
   return events.some((event) => event.type === 'tool_call' || event.type === 'tool_result')
     ? 'openclaw+node-hook'
@@ -21,8 +25,10 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
     fs_writes: new Set<string>(),
     fs_reads_external: new Set<string>(),
     fs_deletes: new Set<string>(),
+    net_protocols: new Set<string>(),
     net_etld_plus_1: new Set<string>(),
     net_hosts: new Set<string>(),
+    net_ports: new Set<number>(),
     exec_commands: new Set<string>(),
     exec_argv: new Set<string>(),
     sensitive_keys_accessed: new Set<string>()
@@ -60,8 +66,16 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
       case 'net_outbound': {
         if (!data.net) break;
         const host = normalizeHost(data.net.host_raw, config);
+        effects.net_protocols.add(data.net.protocol);
         effects.net_hosts.add(host);
         effects.net_etld_plus_1.add(toEtldPlus1(host));
+        const port =
+          typeof data.net.port === 'number'
+            ? data.net.port
+            : data.net.protocol === 'https'
+              ? 443
+              : 80;
+        effects.net_ports.add(port);
         break;
       }
       case 'exec': {
@@ -99,8 +113,10 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
       fs_writes: sorted(effects.fs_writes),
       fs_reads_external: sorted(effects.fs_reads_external),
       fs_deletes: sorted(effects.fs_deletes),
+      net_protocols: sorted(effects.net_protocols),
       net_etld_plus_1: sorted(effects.net_etld_plus_1),
       net_hosts: sorted(effects.net_hosts),
+      net_ports: sortedNumbers(effects.net_ports),
       exec_commands: sorted(effects.exec_commands),
       exec_argv: sorted(effects.exec_argv),
       sensitive_keys_accessed: sorted(effects.sensitive_keys_accessed)

@@ -18,9 +18,18 @@ describe('schema validation', () => {
           network: { normalize_hosts: true },
           exec: { argv_mode: 'hash', mask_patterns: [] },
         },
+        redaction: { redact_paths: [], redact_urls: [], hash_values: false },
         policy: {
           filesystem: { allow_writes: ['./workspace/**'], block_writes: ['/etc/**'], enforce_allowlist: false },
-          network: { allow_etld_plus_1: ['google.com'], allow_hosts: ['*.google.com'], enforce_allowlist: true },
+          network: {
+            allow_etld_plus_1: ['google.com'],
+            allow_hosts: ['*.google.com'],
+            enforce_allowlist: true,
+            allow_protocols: [],
+            block_protocols: [],
+            allow_ports: [],
+            block_ports: [],
+          },
           exec: { allow_commands: ['node'], block_commands: ['rm'], enforce_allowlist: true },
           sensitive: { block_env: ['AWS_SECRET_ACCESS_KEY'], block_file_globs: ['~/.ssh/**'] }
         }
@@ -41,10 +50,17 @@ describe('schema validation', () => {
       const invalid = {
         version: 'one',
         workspace_root: '.',
+        normalization: {
+          version: '1.0',
+          filesystem: { collapse_temp: true, collapse_home: true, ignore_globs: [] },
+          network: { normalize_hosts: true },
+          exec: { argv_mode: 'hash', mask_patterns: [] },
+        },
+        redaction: { redact_paths: [], redact_urls: [], hash_values: false },
         policy: {
           filesystem: { allow_writes: 'not-array', block_writes: [] },
-          network: { allow_etld_plus_1: [], allow_hosts: [] },
-          exec: { allow_commands: [], block_commands: [] },
+          network: { allow_etld_plus_1: [], allow_hosts: [], enforce_allowlist: true, allow_protocols: [], block_protocols: [], allow_ports: [], block_ports: [] },
+          exec: { allow_commands: [], block_commands: [], enforce_allowlist: true },
           sensitive: { block_env: [], block_file_globs: [] }
         }
       };
@@ -56,10 +72,17 @@ describe('schema validation', () => {
       const invalid = {
         version: 1,
         workspace_root: '.',
+        normalization: {
+          version: '1.0',
+          filesystem: { collapse_temp: true, collapse_home: true, ignore_globs: [] },
+          network: { normalize_hosts: true },
+          exec: { argv_mode: 'hash', mask_patterns: [] },
+        },
+        redaction: { redact_paths: [], redact_urls: [], hash_values: false },
         policy: {
           filesystem: { allow_writes: [123], block_writes: [] },
-          network: { allow_etld_plus_1: [], allow_hosts: [] },
-          exec: { allow_commands: [], block_commands: [] },
+          network: { allow_etld_plus_1: [], allow_hosts: [], enforce_allowlist: true, allow_protocols: [], block_protocols: [], allow_ports: [], block_ports: [] },
+          exec: { allow_commands: [], block_commands: [], enforce_allowlist: true },
           sensitive: { block_env: [], block_file_globs: [] }
         }
       };
@@ -111,8 +134,10 @@ describe('schema validation', () => {
           fs_writes: ['file.txt'],
           fs_reads_external: [],
           fs_deletes: [],
+          net_protocols: [],
           net_etld_plus_1: [],
           net_hosts: [],
+          net_ports: [],
           exec_commands: [],
           exec_argv: [],
           sensitive_keys_accessed: []
@@ -136,8 +161,10 @@ describe('schema validation', () => {
           fs_writes: [],
           fs_reads_external: [],
           fs_deletes: [],
+          net_protocols: [],
           net_etld_plus_1: [],
           net_hosts: [],
+          net_ports: [],
           exec_commands: [],
           exec_argv: [],
           sensitive_keys_accessed: []

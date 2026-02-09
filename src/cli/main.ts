@@ -15,9 +15,18 @@ import { formatFinding, summarizeFindings } from '../core/diff/explain';
 import { readJsonl } from '../core/trace/read_jsonl';
 import { generateReportHtml } from '../report/html';
 import { serveReports } from '../report/serve';
-import { writeTraceChecksum, verifyTraceIntegrity, writeSecret, loadSecret } from '../core/integrity';
+import {
+  writeTraceChecksum,
+  verifyTraceIntegrity,
+  writeSecret,
+  loadSecret,
+  writeSignatureChecksum,
+  verifySignatureIntegrity,
+} from '../core/integrity';
 import { validateEffectSignature } from '../core/schema';
 import { serveDashboard } from '../dashboard/server';
+import { findSimilarRuns } from '../core/similarity/search';
+import { detectAnomaly } from '../core/similarity/anomaly';
 
 const program = new Command();
 const packageJsonPath = path.resolve(__dirname, '..', '..', 'package.json');
@@ -25,7 +34,11 @@ const packageJson = fs.existsSync(packageJsonPath)
   ? JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))
   : { version: '0.0.0' };
 
-program.name('agentci').version(packageJson.version).enablePositionalOptions();
+program
+  .name('agentci')
+  .description('CI guardrails / regression tests for agent side effects.')
+  .version(packageJson.version)
+  .enablePositionalOptions();
 
 function resolveConfigPath(cwd: string): string {
   return path.join(cwd, '.agentci', 'config.yaml');
@@ -78,6 +91,7 @@ interface PolicyPack {
   description?: string;
   policy?: Partial<PolicyConfig['policy']>;
   normalization?: Partial<PolicyConfig['normalization']>;
+  redaction?: Partial<PolicyConfig['redaction']>;
 }
 
 function resolvePackPath(nameOrPath: string): string {
@@ -120,6 +134,12 @@ function mergePack(base: PolicyConfig, pack: PolicyPack): PolicyConfig {
       },
     };
   }
+  if (pack.redaction) {
+    merged.redaction = {
+      ...base.redaction,
+      ...pack.redaction,
+    };
+  }
   if (pack.policy) {
     merged.policy = {
       ...base.policy,
@@ -160,6 +180,10 @@ function driftHint(category: string): string {
       return 'New external file reads.';
     case 'net_hosts':
       return 'New outbound network destinations.';
+    case 'net_protocols':
+      return 'New network protocols used.';
+    case 'net_ports':
+      return 'New network ports used.';
     case 'net_etld_plus_1':
       return 'New top-level domains contacted.';
     case 'exec_commands':
@@ -177,6 +201,10 @@ function loadSignature(pathInput: string): EffectSignature {
   const raw = JSON.parse(fs.readFileSync(pathInput, 'utf8'));
   if (raw?.meta && !raw.meta.normalization_rules_version) {
     raw.meta.normalization_rules_version = 'legacy';
+  }
+  if (raw?.effects) {
+    if (!raw.effects.net_protocols) raw.effects.net_protocols = [];
+    if (!raw.effects.net_ports) raw.effects.net_ports = [];
   }
   const sig = validateEffectSignature(raw);
   if (sig.meta.signature_version !== '1.0') {
@@ -294,6 +322,9 @@ program
 
     const runId = process.env.AGENTCI_RUN_ID || path.basename(runDir);
     const secret = loadSecret(process.cwd(), runId);
+    const signatureChecksumPath = writeSignatureChecksum(outPath, runId, secret);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Wrote signature checksum to ${signatureChecksumPath}`));
     const checksumPath = writeTraceChecksum(tracePath, runId, secret);
     // eslint-disable-next-line no-console
     console.log(chalk.green(`Wrote integrity checksum to ${checksumPath}`));
@@ -319,10 +350,20 @@ baselineCmd
     // eslint-disable-next-line no-console
     console.log(chalk.green(`Wrote signature to ${runSigPath}`));
 
+    const runId = process.env.AGENTCI_RUN_ID || path.basename(runDir);
+    const secret = loadSecret(process.cwd(), runId);
+    const runSigChecksum = writeSignatureChecksum(runSigPath, runId, secret);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Wrote signature checksum to ${runSigChecksum}`));
+
     const baselinePath = resolveBaselinePath(process.cwd());
     writeSignature(baselinePath, signature);
     // eslint-disable-next-line no-console
     console.log(chalk.green(`Updated baseline at ${baselinePath}`));
+
+    const baselineChecksum = writeSignatureChecksum(baselinePath, runId, secret);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Wrote baseline checksum to ${baselineChecksum}`));
 
     const metaPath = resolveBaselineMetaPath(process.cwd());
     const digest = sha256File(baselinePath);
@@ -443,7 +484,7 @@ policyCmd
     }
     files.forEach((file) => {
       try {
-        const pack = loadPolicyPack(file.replace(/\\.(yaml|yml)$/i, ''));
+        const pack = loadPolicyPack(file.replace(/\.(yaml|yml)$/i, ''));
         // eslint-disable-next-line no-console
         console.log(`${pack.name}${pack.description ? ` — ${pack.description}` : ''}`);
       } catch {
@@ -502,10 +543,14 @@ program
 
     const format = parseFormat(options.format);
     if (format === 'json') {
+      const driftHints = Object.fromEntries(
+        Object.keys(diff.drift).map((key) => [key, driftHint(key)]),
+      );
       const payload = {
         summary,
         findings,
         drift: diff.drift,
+        drift_hints: driftHints,
         context: {
           platform: current.meta.platform,
           adapter: current.meta.adapter,
@@ -547,7 +592,7 @@ program
         const hint = driftHint(key);
         const label = hint ? `${key} — ${hint}` : key;
         console.log(chalk.cyan(`${label}:`));
-        values.forEach((value: string) => console.log(`  - ${value}`));
+        values.forEach((value: string | number) => console.log(`  - ${value}`));
       });
     }
 
@@ -694,6 +739,11 @@ program
       trace: result,
     };
 
+    if (options.signature) {
+      const sigResult = verifySignatureIntegrity(options.signature, runId, secret);
+      checks.signature_integrity = sigResult;
+    }
+
     if (options.attestation) {
       try {
         const attestation = JSON.parse(fs.readFileSync(options.attestation, 'utf8'));
@@ -784,6 +834,165 @@ program
       process.exit(1);
     }
     serveDashboard(dir, port);
+  });
+
+// --- Remote control plane commands (Pro) ---
+
+const remoteCmd = program.command('remote').description('Remote control plane commands (Pro)');
+
+remoteCmd
+  .command('login')
+  .description('Save remote server URL and API key')
+  .argument('<url>', 'Remote server URL')
+  .argument('<api_key>', 'API key')
+  .action(async (url: string, apiKey: string) => {
+    const { saveRemoteConfig } = await import('../pro/remote/client');
+    const agentciDir = path.join(process.cwd(), '.agentci');
+    saveRemoteConfig(agentciDir, { url, api_key: apiKey });
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Saved remote config to ${agentciDir}/remote.json`));
+  });
+
+remoteCmd
+  .command('push')
+  .description('Push a run to the remote control plane')
+  .argument('<run_dir>', 'Run directory to push')
+  .action(async (runDir: string) => {
+    const { loadRemoteConfig, pushRun } = await import('../pro/remote/client');
+    const { requireFeature } = await import('../core/license');
+    const agentciDir = path.join(process.cwd(), '.agentci');
+    requireFeature('remote', 'Remote Push', agentciDir);
+    const config = loadRemoteConfig(agentciDir);
+    if (!config) {
+      console.error(chalk.red('No remote config. Run: agentci remote login <url> <api_key>'));
+      process.exit(1);
+    }
+    const result = await pushRun(config.url, config.api_key, path.resolve(runDir));
+    if (result.status === 200) {
+      // eslint-disable-next-line no-console
+      console.log(chalk.green('Run pushed successfully.'));
+    } else {
+      console.error(chalk.red(`Push failed (${result.status}): ${JSON.stringify(result.body)}`));
+      process.exit(1);
+    }
+  });
+
+remoteCmd
+  .command('runs')
+  .description('List runs from the remote control plane')
+  .action(async () => {
+    const { loadRemoteConfig, listRemoteRuns } = await import('../pro/remote/client');
+    const { requireFeature } = await import('../core/license');
+    const agentciDir = path.join(process.cwd(), '.agentci');
+    requireFeature('remote', 'Remote List Runs', agentciDir);
+    const config = loadRemoteConfig(agentciDir);
+    if (!config) {
+      console.error(chalk.red('No remote config. Run: agentci remote login <url> <api_key>'));
+      process.exit(1);
+    }
+    const result = await listRemoteRuns(config.url, config.api_key);
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(result.body, null, 2));
+  });
+
+remoteCmd
+  .command('serve')
+  .description('Start the remote control plane server')
+  .option('--data-dir <path>', 'Data directory', '.agentci/remote')
+  .option('--keys-file <path>', 'API keys file', '.agentci/remote/keys/api-keys.json')
+  .option('--port <port>', 'Port to serve', '9090')
+  .action(async (options: { dataDir: string; keysFile: string; port: string }) => {
+    const { serveRemote } = await import('../pro/remote/server');
+    const agentciDir = path.join(process.cwd(), '.agentci');
+    const dataDir = path.resolve(process.cwd(), options.dataDir);
+    const keysFile = path.resolve(process.cwd(), options.keysFile);
+    const port = Number(options.port);
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+      console.error(chalk.red('Invalid port number. Must be 1-65535.'));
+      process.exit(1);
+    }
+    serveRemote(dataDir, port, keysFile, agentciDir);
+  });
+
+remoteCmd
+  .command('keygen')
+  .description('Generate a new API key')
+  .option('--team <id>', 'Team ID', 'default')
+  .option('--name <name>', 'Key name', 'cli-generated')
+  .option('--keys-file <path>', 'API keys file', '.agentci/remote/keys/api-keys.json')
+  .action(async (options: { team: string; name: string; keysFile: string }) => {
+    const { generateApiKey, addApiKey } = await import('../pro/remote/keygen');
+    const keysFile = path.resolve(process.cwd(), options.keysFile);
+    const key = generateApiKey();
+    addApiKey(keysFile, key, options.team, options.name);
+    // eslint-disable-next-line no-console
+    console.log(chalk.green(`Generated API key for team "${options.team}":`));
+    // eslint-disable-next-line no-console
+    console.log(key);
+    // eslint-disable-next-line no-console
+    console.log(chalk.yellow('\nStore this key securely — it cannot be retrieved later.'));
+  });
+
+// --- Similarity + Anomaly commands ---
+
+program
+  .command('similar')
+  .description('Find runs most similar to a given signature')
+  .argument('<signature_or_run_dir>', 'Signature file or run directory')
+  .option('--limit <n>', 'Number of results', '10')
+  .option('--runs-dir <path>', 'Runs directory', '.agentci/runs')
+  .action((input: string, options: { limit: string; runsDir: string }) => {
+    const sig = loadSignature(
+      fs.statSync(input).isDirectory() ? path.join(input, 'signature.json') : input,
+    );
+    const runsDir = path.resolve(process.cwd(), options.runsDir);
+    const limit = parseInt(options.limit, 10) || 10;
+    const results = findSimilarRuns(sig, runsDir, limit);
+
+    if (!results.length) {
+      // eslint-disable-next-line no-console
+      console.log(chalk.gray('No similar runs found.'));
+      return;
+    }
+
+    // eslint-disable-next-line no-console
+    console.log(chalk.bold(`Top ${results.length} similar runs:`));
+    for (const r of results) {
+      const pct = (r.score * 100).toFixed(1);
+      const color = r.score > 0.8 ? chalk.green : r.score > 0.5 ? chalk.yellow : chalk.red;
+      // eslint-disable-next-line no-console
+      console.log(`  ${color(`${pct}%`)}  ${r.run_id}`);
+    }
+  });
+
+program
+  .command('anomaly')
+  .description('Detect anomalous behavior in a run')
+  .argument('<signature_or_run_dir>', 'Signature file or run directory')
+  .option('--threshold <0-1>', 'Anomaly threshold', '0.7')
+  .option('--runs-dir <path>', 'Runs directory', '.agentci/runs')
+  .action((input: string, options: { threshold: string; runsDir: string }) => {
+    const sig = loadSignature(
+      fs.statSync(input).isDirectory() ? path.join(input, 'signature.json') : input,
+    );
+    const runsDir = path.resolve(process.cwd(), options.runsDir);
+    const threshold = parseFloat(options.threshold) || 0.7;
+    const result = detectAnomaly(sig, runsDir, { threshold });
+
+    if (result.is_anomaly) {
+      // eslint-disable-next-line no-console
+      console.log(chalk.red(`ANOMALY DETECTED (score: ${(result.score * 100).toFixed(1)}%, threshold: ${(result.threshold * 100).toFixed(1)}%)`));
+      // eslint-disable-next-line no-console
+      console.log(chalk.bold('Nearest neighbors:'));
+      for (const n of result.nearest_neighbors) {
+        // eslint-disable-next-line no-console
+        console.log(`  ${(n.similarity * 100).toFixed(1)}%  ${n.run_id}`);
+      }
+      process.exit(1);
+    } else {
+      // eslint-disable-next-line no-console
+      console.log(chalk.green(`NORMAL (score: ${(result.score * 100).toFixed(1)}%, threshold: ${(result.threshold * 100).toFixed(1)}%)`));
+    }
   });
 
 program.parse(process.argv);

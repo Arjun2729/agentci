@@ -1,0 +1,5 @@
+{"id":"evt_001","timestamp":1707300000000,"run_id":"golden-exec","type":"lifecycle","data":{"event":"start","agentci_version":"0.1.0"}}
+{"id":"evt_002","timestamp":1707300001000,"run_id":"golden-exec","type":"effect","data":{"category":"exec","kind":"observed","exec":{"command_raw":"npm","argv_normalized":["npm","install","express"]}}}
+{"id":"evt_003","timestamp":1707300002000,"run_id":"golden-exec","type":"effect","data":{"category":"exec","kind":"observed","exec":{"command_raw":"git","argv_normalized":["git","status"]}}}
+{"id":"evt_004","timestamp":1707300003000,"run_id":"golden-exec","type":"effect","data":{"category":"exec","kind":"observed","exec":{"command_raw":"node","argv_normalized":["node","build.js"]}}}
+{"id":"evt_005","timestamp":1707300004000,"run_id":"golden-exec","type":"lifecycle","data":{"event":"stop"}}

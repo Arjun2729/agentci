@@ -58,9 +58,18 @@ describe('summarize', () => {
         network: { normalize_hosts: true },
         exec: { argv_mode: 'hash', mask_patterns: [] },
       },
+      redaction: { redact_paths: [], redact_urls: [], hash_values: false },
       policy: {
         filesystem: { allow_writes: [], block_writes: [], enforce_allowlist: false },
-        network: { allow_etld_plus_1: [], allow_hosts: [], enforce_allowlist: true },
+        network: {
+          allow_etld_plus_1: [],
+          allow_hosts: [],
+          enforce_allowlist: true,
+          allow_protocols: [],
+          block_protocols: [],
+          allow_ports: [],
+          block_ports: [],
+        },
         exec: { allow_commands: [], block_commands: [], enforce_allowlist: true },
         sensitive: { block_env: [], block_file_globs: [] }
       },

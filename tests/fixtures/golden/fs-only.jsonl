@@ -1,0 +1,6 @@
+{"id":"evt_001","timestamp":1707300000000,"run_id":"golden-fs","type":"lifecycle","data":{"event":"start","agentci_version":"0.1.0"}}
+{"id":"evt_002","timestamp":1707300001000,"run_id":"golden-fs","type":"effect","data":{"category":"fs_write","kind":"observed","fs":{"path_requested":"./src/index.ts","path_resolved":"./src/index.ts","is_workspace_local":true}}}
+{"id":"evt_003","timestamp":1707300002000,"run_id":"golden-fs","type":"effect","data":{"category":"fs_write","kind":"observed","fs":{"path_requested":"./src/utils.ts","path_resolved":"./src/utils.ts","is_workspace_local":true}}}
+{"id":"evt_004","timestamp":1707300003000,"run_id":"golden-fs","type":"effect","data":{"category":"fs_read","kind":"observed","fs":{"path_requested":"/etc/passwd","path_resolved":"/etc/passwd","is_workspace_local":false}}}
+{"id":"evt_005","timestamp":1707300004000,"run_id":"golden-fs","type":"effect","data":{"category":"fs_delete","kind":"observed","fs":{"path_requested":"./tmp/cache.json","path_resolved":"./tmp/cache.json","is_workspace_local":true}}}
+{"id":"evt_006","timestamp":1707300005000,"run_id":"golden-fs","type":"lifecycle","data":{"event":"stop"}}

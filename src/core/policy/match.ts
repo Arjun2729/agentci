@@ -55,6 +55,14 @@ export function matchHost(patterns: string[], host: string): boolean {
 export function matchKey(patterns: string[], value: string): boolean {
   if (!patterns.length) return false;
   return patterns.some((pattern) => {
+    if (pattern.startsWith('re:')) {
+      try {
+        const re = new RegExp(pattern.slice(3), 'i');
+        return re.test(value);
+      } catch {
+        return false;
+      }
+    }
     const matcher = picomatch(pattern, { dot: true, nocase: true });
     return matcher(value);
   });
