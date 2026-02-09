@@ -425,7 +425,7 @@ See [docs/adr/](docs/adr/) for all architectural decisions.
 ## Development
 
 ```bash
-git clone https://github.com/anthropics/agentci.git  # TODO: update URL
+git clone https://github.com/Arjun2729/agentci.git
 cd agentci
 npm install
 npm run build

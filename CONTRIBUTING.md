@@ -5,7 +5,7 @@ Thank you for your interest in contributing to AgentCI.
 ## Development Setup
 
 ```bash
-git clone https://github.com/anthropics/agentci.git
+git clone https://github.com/Arjun2729/agentci.git
 cd agentci
 npm install
 npm run build
@@ -122,7 +122,7 @@ These have been explicitly considered and rejected. PRs implementing them will n
 
 ## Reporting Issues
 
-Open an issue at https://github.com/anthropics/agentci/issues with:
+Open an issue at https://github.com/Arjun2729/agentci/issues with:
 - Steps to reproduce
 - Expected vs actual behavior
 - Node.js / Python version
