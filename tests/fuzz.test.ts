@@ -72,13 +72,7 @@ describe('JSONL parser fuzz tests', () => {
       type: 'effect',
       data: { category: 'fs_write' },
     });
-    const content = [
-      'garbage{{{',
-      validLine,
-      '???not json???',
-      validLine,
-      'truncated{"id":',
-    ].join('\n');
+    const content = ['garbage{{{', validLine, '???not json???', validLine, 'truncated{"id":'].join('\n');
     fs.writeFileSync(p, content, 'utf8');
     const events = readJsonl(p);
     expect(events.length).toBe(2);
@@ -116,9 +110,7 @@ describe('JSONL parser fuzz tests', () => {
       type: 'lifecycle',
       data: { stage: 'start' },
     });
-    const lines = Array.from({ length: 100 }, (_, i) =>
-      i % 10 === 0 ? validLine : '',
-    );
+    const lines = Array.from({ length: 100 }, (_, i) => (i % 10 === 0 ? validLine : ''));
     fs.writeFileSync(p, lines.join('\n'), 'utf8');
     const events = readJsonl(p);
     expect(events.length).toBe(10);

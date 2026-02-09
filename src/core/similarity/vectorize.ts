@@ -31,7 +31,10 @@ export function buildVocabulary(signatures: EffectSignature[]): Vocabulary {
   return { tokens, tokenToIndex, size: tokens.length };
 }
 
-export function buildVocabularyFromRunsDir(runsDir: string): { vocab: Vocabulary; signatures: Array<{ runId: string; signature: EffectSignature }> } {
+export function buildVocabularyFromRunsDir(runsDir: string): {
+  vocab: Vocabulary;
+  signatures: Array<{ runId: string; signature: EffectSignature }>;
+} {
   const signatures: Array<{ runId: string; signature: EffectSignature }> = [];
 
   if (!fs.existsSync(runsDir)) return { vocab: { tokens: [], tokenToIndex: new Map(), size: 0 }, signatures };
@@ -51,7 +54,7 @@ export function buildVocabularyFromRunsDir(runsDir: string): { vocab: Vocabulary
     }
   }
 
-  const vocab = buildVocabulary(signatures.map(s => s.signature));
+  const vocab = buildVocabulary(signatures.map((s) => s.signature));
   return { vocab, signatures };
 }
 

@@ -11,11 +11,7 @@ export interface SimilarRun {
  * Find runs most similar to a query signature using brute-force cosine similarity.
  * This is the free-tier implementation — no external dependencies required.
  */
-export function findSimilarRuns(
-  querySignature: EffectSignature,
-  runsDir: string,
-  limit: number = 10,
-): SimilarRun[] {
+export function findSimilarRuns(querySignature: EffectSignature, runsDir: string, limit: number = 10): SimilarRun[] {
   const { vocab, signatures } = buildVocabularyFromRunsDir(runsDir);
 
   if (vocab.size === 0 || signatures.length === 0) return [];

@@ -34,10 +34,15 @@ function shouldBlock(ctx: RecorderContext, data: EffectEventData): string | null
         }
       }
       const candidate = getWriteCandidate(writePath, path.resolve(ctx.workspaceRoot));
-      if (matchPath(ctx.config.policy.filesystem.block_writes, isAbsolute(writePath) ? expandTilde(writePath) : candidate)) {
+      if (
+        matchPath(ctx.config.policy.filesystem.block_writes, isAbsolute(writePath) ? expandTilde(writePath) : candidate)
+      ) {
         return `write blocked by policy: ${writePath}`;
       }
-      if (ctx.config.policy.filesystem.enforce_allowlist && !matchPath(ctx.config.policy.filesystem.allow_writes, candidate)) {
+      if (
+        ctx.config.policy.filesystem.enforce_allowlist &&
+        !matchPath(ctx.config.policy.filesystem.allow_writes, candidate)
+      ) {
         return `write not in allow_writes: ${writePath}`;
       }
       return null;
@@ -50,7 +55,11 @@ function shouldBlock(ctx: RecorderContext, data: EffectEventData): string | null
       const allowedEtlds = ctx.config.policy.network.allow_etld_plus_1.map((value) => value.toLowerCase());
       const hasAllowlist =
         ctx.config.policy.network.allow_hosts.length > 0 || ctx.config.policy.network.allow_etld_plus_1.length > 0;
-      if (!hostAllowed && !allowedEtlds.includes(etld) && (ctx.config.policy.network.enforce_allowlist || hasAllowlist)) {
+      if (
+        !hostAllowed &&
+        !allowedEtlds.includes(etld) &&
+        (ctx.config.policy.network.enforce_allowlist || hasAllowlist)
+      ) {
         return `host '${host}' (eTLD+1: ${etld}) not allowed by policy`;
       }
       const protocol = data.net.protocol.toLowerCase();
@@ -62,12 +71,7 @@ function shouldBlock(ctx: RecorderContext, data: EffectEventData): string | null
       if (allowProtocols.length && !allowProtocols.includes(protocol)) {
         return `protocol '${data.net.protocol}' not in allow_protocols`;
       }
-      const port =
-        typeof data.net.port === 'number'
-          ? data.net.port
-          : data.net.protocol === 'https'
-            ? 443
-            : 80;
+      const port = typeof data.net.port === 'number' ? data.net.port : data.net.protocol === 'https' ? 443 : 80;
       if (ctx.config.policy.network.block_ports.includes(port)) {
         return `port '${port}' is blocked by policy`;
       }

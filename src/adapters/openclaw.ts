@@ -29,7 +29,7 @@ export function emitToolCall(name: string, input: unknown, runId?: string): void
     timestamp: now(),
     run_id: runId || process.env.AGENTCI_RUN_ID || 'unknown',
     type: 'tool_call',
-    data: { name, input, kind: 'declared' }
+    data: { name, input, kind: 'declared' },
   });
 }
 
@@ -39,6 +39,6 @@ export function emitToolResult(name: string, output: unknown, runId?: string): v
     timestamp: now(),
     run_id: runId || process.env.AGENTCI_RUN_ID || 'unknown',
     type: 'tool_result',
-    data: { name, output, kind: 'declared' }
+    data: { name, output, kind: 'declared' },
   });
 }

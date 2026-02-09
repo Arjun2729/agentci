@@ -106,7 +106,9 @@ export function validatePolicyConfig(raw: unknown): ValidatedPolicyConfig {
 /**
  * Safely validate a PolicyConfig, returning null on failure with logged errors.
  */
-export function safeParsePolicyConfig(raw: unknown): { success: true; data: ValidatedPolicyConfig } | { success: false; errors: string[] } {
+export function safeParsePolicyConfig(
+  raw: unknown,
+): { success: true; data: ValidatedPolicyConfig } | { success: false; errors: string[] } {
   const result = PolicyConfigSchema.safeParse(raw);
   if (result.success) {
     return { success: true, data: result.data };

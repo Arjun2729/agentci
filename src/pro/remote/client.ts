@@ -75,9 +75,7 @@ export async function pushRun(
 
   const signature = JSON.parse(fs.readFileSync(sigPath, 'utf8'));
   const findings = fs.existsSync(findingsPath) ? JSON.parse(fs.readFileSync(findingsPath, 'utf8')) : [];
-  const attestation = fs.existsSync(attestationPath)
-    ? JSON.parse(fs.readFileSync(attestationPath, 'utf8'))
-    : undefined;
+  const attestation = fs.existsSync(attestationPath) ? JSON.parse(fs.readFileSync(attestationPath, 'utf8')) : undefined;
 
   const runId = path.basename(runDir);
   const payload = { run_id: runId, signature, findings, attestation };
@@ -86,10 +84,7 @@ export async function pushRun(
   return { status: result.status, body: JSON.parse(result.body) };
 }
 
-export async function listRemoteRuns(
-  remoteUrl: string,
-  apiKey: string,
-): Promise<{ status: number; body: unknown }> {
+export async function listRemoteRuns(remoteUrl: string, apiKey: string): Promise<{ status: number; body: unknown }> {
   const result = await request('GET', `${remoteUrl}/api/runs`, apiKey);
   return { status: result.status, body: JSON.parse(result.body) };
 }

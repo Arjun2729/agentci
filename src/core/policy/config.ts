@@ -13,13 +13,7 @@ export function defaultConfig(workspaceRoot: string): PolicyConfig {
       filesystem: {
         collapse_temp: true,
         collapse_home: true,
-        ignore_globs: [
-          '**/.DS_Store',
-          '**/Thumbs.db',
-          '**/.git/**',
-          '**/.idea/**',
-          '**/.vscode/**',
-        ],
+        ignore_globs: ['**/.DS_Store', '**/Thumbs.db', '**/.git/**', '**/.idea/**', '**/.vscode/**'],
       },
       network: {
         normalize_hosts: true,
@@ -38,7 +32,7 @@ export function defaultConfig(workspaceRoot: string): PolicyConfig {
       filesystem: {
         allow_writes: ['./workspace/**', './tmp/**'],
         block_writes: ['/etc/**', '~/**'],
-        enforce_allowlist: false
+        enforce_allowlist: false,
       },
       network: {
         allow_etld_plus_1: [],
@@ -47,12 +41,12 @@ export function defaultConfig(workspaceRoot: string): PolicyConfig {
         allow_protocols: [],
         block_protocols: [],
         allow_ports: [],
-        block_ports: []
+        block_ports: [],
       },
       exec: {
         allow_commands: ['git', 'ls', 'echo', 'node', 'npm'],
         block_commands: ['rm', 'curl', 'wget'],
-        enforce_allowlist: true
+        enforce_allowlist: true,
       },
       sensitive: {
         block_env: [
@@ -68,14 +62,14 @@ export function defaultConfig(workspaceRoot: string): PolicyConfig {
           'DATABASE_URL',
           'SLACK_*',
           'GH_*',
-          'GITHUB_*'
+          'GITHUB_*',
         ],
-        block_file_globs: ['~/.ssh/**', '~/.aws/**', '**/.env*']
-      }
+        block_file_globs: ['~/.ssh/**', '~/.aws/**', '**/.env*'],
+      },
     },
     reporting: {
-      explain_templates: true
-    }
+      explain_templates: true,
+    },
   };
 }
 
@@ -129,25 +123,25 @@ export function loadConfig(configPath: string | undefined, workspaceRootFallback
       ...(parsed?.policy ?? {}),
       filesystem: {
         ...defaultConfig(workspaceRoot).policy.filesystem,
-        ...(parsed?.policy?.filesystem ?? {})
+        ...(parsed?.policy?.filesystem ?? {}),
       },
       network: {
         ...defaultConfig(workspaceRoot).policy.network,
-        ...(parsed?.policy?.network ?? {})
+        ...(parsed?.policy?.network ?? {}),
       },
       exec: {
         ...defaultConfig(workspaceRoot).policy.exec,
-        ...(parsed?.policy?.exec ?? {})
+        ...(parsed?.policy?.exec ?? {}),
       },
       sensitive: {
         ...defaultConfig(workspaceRoot).policy.sensitive,
-        ...(parsed?.policy?.sensitive ?? {})
-      }
+        ...(parsed?.policy?.sensitive ?? {}),
+      },
     },
     reporting: {
       ...defaultConfig(workspaceRoot).reporting,
-      ...(parsed?.reporting ?? {})
-    }
+      ...(parsed?.reporting ?? {}),
+    },
   };
 
   const validation = safeParsePolicyConfig(merged);

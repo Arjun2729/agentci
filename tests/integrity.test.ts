@@ -15,7 +15,7 @@ describe('trace integrity', () => {
       tracePath,
       '{"id":"1","timestamp":1000,"run_id":"test-run","type":"lifecycle","data":{"stage":"start"}}\n' +
         '{"id":"2","timestamp":2000,"run_id":"test-run","type":"lifecycle","data":{"stage":"stop"}}\n',
-      'utf8'
+      'utf8',
     );
   });
 
@@ -59,7 +59,10 @@ describe('trace integrity', () => {
     writeTraceChecksum(tracePath, 'test-run');
 
     // Tamper with the trace file
-    fs.appendFileSync(tracePath, '{"id":"3","timestamp":3000,"run_id":"test-run","type":"lifecycle","data":{"stage":"error"}}\n');
+    fs.appendFileSync(
+      tracePath,
+      '{"id":"3","timestamp":3000,"run_id":"test-run","type":"lifecycle","data":{"stage":"error"}}\n',
+    );
 
     const result = verifyTraceIntegrity(tracePath, 'test-run');
     expect(result.valid).toBe(false);

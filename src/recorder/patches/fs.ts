@@ -18,7 +18,7 @@ function buildEvent(ctx: RecorderContext, data: EffectEventData): TraceEvent {
     timestamp: now(),
     run_id: ctx.runId,
     type: 'effect',
-    data
+    data,
   };
 }
 
@@ -58,8 +58,8 @@ function recordFs(ctx: RecorderContext, category: EffectEventData['category'], i
       fs: {
         path_requested: inputPath,
         path_resolved: resolved.resolvedAbs,
-        is_workspace_local: resolved.isWorkspaceLocal
-      }
+        is_workspace_local: resolved.isWorkspaceLocal,
+      },
     };
     ctx.writer.write(buildEvent(ctx, data));
     enforceEffect(ctx, data);
@@ -70,7 +70,7 @@ function recordFs(ctx: RecorderContext, category: EffectEventData['category'], i
         const sensitiveEvent: EffectEventData = {
           category: 'sensitive_access',
           kind: 'observed',
-          sensitive: { type: 'file_read', key_name: expanded }
+          sensitive: { type: 'file_read', key_name: expanded },
         };
         ctx.writer.write(buildEvent(ctx, sensitiveEvent));
         enforceEffect(ctx, sensitiveEvent);
@@ -99,14 +99,10 @@ export function patchFs(ctx: RecorderContext): void {
     rmSync: fs.rmSync,
     rename: fs.rename,
     renameSync: fs.renameSync,
-    promises: fs.promises ? { ...fs.promises } : null
+    promises: fs.promises ? { ...fs.promises } : null,
   };
 
-  function wrapSync(
-    fn: (...args: any[]) => any,
-    category: EffectEventData['category'],
-    pathIndex = 0
-  ) {
+  function wrapSync(fn: (...args: any[]) => any, category: EffectEventData['category'], pathIndex = 0) {
     return function (...args: any[]) {
       if (ctx.state.bypass) return fn.apply(fs, args);
       const target = pathFromArg(args[pathIndex]);
@@ -116,11 +112,7 @@ export function patchFs(ctx: RecorderContext): void {
     };
   }
 
-  function wrapAsync(
-    fn: (...args: any[]) => any,
-    category: EffectEventData['category'],
-    pathIndex = 0
-  ) {
+  function wrapAsync(fn: (...args: any[]) => any, category: EffectEventData['category'], pathIndex = 0) {
     return function (...args: any[]) {
       if (ctx.state.bypass) return fn.apply(fs, args);
       const target = pathFromArg(args[pathIndex]);
@@ -223,7 +215,7 @@ export function patchFs(ctx: RecorderContext): void {
     const wrapPromise = (
       fn: (...args: any[]) => Promise<any>,
       category: EffectEventData['category'],
-      pathIndex = 0
+      pathIndex = 0,
     ) => {
       return async function (...args: any[]) {
         if (ctx.state.bypass) return fn.apply(p, args as any);

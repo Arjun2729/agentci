@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 import { evaluatePolicy } from '../src/core/policy/evaluate';
+import { defaultConfig, loadConfig, saveConfig } from '../src/core/policy/config';
 import { EffectSignature, PolicyConfig } from '../src/core/types';
 
 const baseSignature: EffectSignature = {
@@ -75,10 +79,7 @@ describe('policy evaluation', () => {
   it('blocks sensitive env var access', () => {
     const findings = evaluatePolicy(baseSignature, config);
     const sensitiveBlock = findings.find(
-      (f) =>
-        f.severity === 'BLOCK' &&
-        f.category === 'sensitive' &&
-        f.message.includes('AWS_SECRET_ACCESS_KEY'),
+      (f) => f.severity === 'BLOCK' && f.category === 'sensitive' && f.message.includes('AWS_SECRET_ACCESS_KEY'),
     );
     expect(sensitiveBlock).toBeDefined();
     expect(sensitiveBlock!.message).toContain('env var');
@@ -135,5 +136,86 @@ describe('policy evaluation', () => {
     const blocks = findings.filter((f) => f.severity === 'BLOCK');
     // evil.com (network), rm (exec), AWS_SECRET_ACCESS_KEY (sensitive) = 3 blocks
     expect(blocks.length).toBe(3);
+  });
+});
+
+describe('config', () => {
+  let tmpDir: string;
+
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agentci-config-'));
+  });
+
+  afterEach(() => {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('defaultConfig returns valid config with workspace root', () => {
+    const cfg = defaultConfig('/my/workspace');
+    expect(cfg.version).toBe(1);
+    expect(cfg.workspace_root).toBe('/my/workspace');
+    expect(cfg.policy.exec.block_commands).toContain('rm');
+  });
+
+  it('loadConfig returns default when no path given', () => {
+    const cfg = loadConfig(undefined, '/fallback');
+    expect(cfg.workspace_root).toBe('/fallback');
+  });
+
+  it('loadConfig returns default when file does not exist', () => {
+    const cfg = loadConfig(path.join(tmpDir, 'nonexistent.yml'), '/fallback');
+    expect(cfg.workspace_root).toBe('/fallback');
+  });
+
+  it('loadConfig parses valid YAML config', () => {
+    const configPath = path.join(tmpDir, 'agentci.yml');
+    fs.writeFileSync(
+      configPath,
+      `version: 1
+policy:
+  exec:
+    block_commands:
+      - dangerous
+`,
+    );
+    const cfg = loadConfig(configPath, tmpDir);
+    expect(cfg.policy.exec.block_commands).toContain('dangerous');
+  });
+
+  it('loadConfig falls back to default for invalid config', () => {
+    const configPath = path.join(tmpDir, 'bad.yml');
+    fs.writeFileSync(configPath, 'version: "not-a-number"\n');
+    const cfg = loadConfig(configPath, tmpDir);
+    expect(cfg.version).toBe(1);
+  });
+
+  it('saveConfig writes YAML file', () => {
+    const configPath = path.join(tmpDir, 'out', 'config.yml');
+    const cfg = defaultConfig(tmpDir);
+    saveConfig(configPath, cfg);
+    expect(fs.existsSync(configPath)).toBe(true);
+    const raw = fs.readFileSync(configPath, 'utf8');
+    expect(raw).toContain('version: 1');
+  });
+
+  it('loadConfig resolves relative workspace_root', () => {
+    const configPath = path.join(tmpDir, 'agentci.yml');
+    fs.writeFileSync(configPath, 'version: 1\nworkspace_root: ./sub\n');
+    const cfg = loadConfig(configPath, tmpDir);
+    expect(cfg.workspace_root).toBe(path.resolve(tmpDir, './sub'));
+  });
+
+  it('loadConfig handles redact_hosts legacy field', () => {
+    const configPath = path.join(tmpDir, 'agentci.yml');
+    fs.writeFileSync(
+      configPath,
+      `version: 1
+redaction:
+  redact_hosts:
+    - "*.internal.com"
+`,
+    );
+    const cfg = loadConfig(configPath, tmpDir);
+    expect(cfg.redaction.redact_urls).toContain('*.internal.com');
   });
 });

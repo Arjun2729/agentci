@@ -137,7 +137,7 @@ export function hasFeature(name: string, agentciDir?: string): boolean {
 export function requireFeature(name: string, label: string, agentciDir?: string): void {
   if (!hasFeature(name, agentciDir)) {
     const err = new Error(
-      `Feature "${label}" requires an AgentCI Pro license. Visit https://agentci.dev/pricing to upgrade.`
+      `Feature "${label}" requires an AgentCI Pro license. Visit https://agentci.dev/pricing to upgrade.`,
     );
     (err as Error & { code: string }).code = 'LICENSE_REQUIRED';
     throw err;

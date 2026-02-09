@@ -4,27 +4,51 @@ import type { TraceEvent, EffectCategory, EffectEventData, EffectSignature } fro
 export function arbitraryPath(): fc.Arbitrary<string> {
   return fc.oneof(
     // Absolute Unix paths
-    fc.array(fc.stringOf(fc.char().filter(c => c !== '/' && c !== '\0'), { minLength: 1, maxLength: 20 }), { minLength: 1, maxLength: 6 })
-      .map(parts => '/' + parts.join('/')),
+    fc
+      .array(
+        fc.stringOf(
+          fc.char().filter((c) => c !== '/' && c !== '\0'),
+          { minLength: 1, maxLength: 20 },
+        ),
+        { minLength: 1, maxLength: 6 },
+      )
+      .map((parts) => '/' + parts.join('/')),
     // Relative workspace paths
-    fc.array(fc.stringOf(fc.char().filter(c => c !== '/' && c !== '\0'), { minLength: 1, maxLength: 15 }), { minLength: 1, maxLength: 4 })
-      .map(parts => './workspace/' + parts.join('/')),
+    fc
+      .array(
+        fc.stringOf(
+          fc.char().filter((c) => c !== '/' && c !== '\0'),
+          { minLength: 1, maxLength: 15 },
+        ),
+        { minLength: 1, maxLength: 4 },
+      )
+      .map((parts) => './workspace/' + parts.join('/')),
     // Home-relative paths
-    fc.array(fc.stringOf(fc.char().filter(c => c !== '/' && c !== '\0'), { minLength: 1, maxLength: 12 }), { minLength: 1, maxLength: 3 })
-      .map(parts => '~/' + parts.join('/')),
+    fc
+      .array(
+        fc.stringOf(
+          fc.char().filter((c) => c !== '/' && c !== '\0'),
+          { minLength: 1, maxLength: 12 },
+        ),
+        { minLength: 1, maxLength: 3 },
+      )
+      .map((parts) => '~/' + parts.join('/')),
   );
 }
 
 export function arbitraryHostname(): fc.Arbitrary<string> {
   return fc.oneof(
     // Simple hostnames
-    fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), { minLength: 3, maxLength: 15 })
-      .map(s => s + '.com'),
+    fc
+      .stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz0123456789'.split('')), { minLength: 3, maxLength: 15 })
+      .map((s) => s + '.com'),
     // Subdomains
-    fc.tuple(
-      fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), { minLength: 2, maxLength: 8 }),
-      fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), { minLength: 2, maxLength: 10 }),
-    ).map(([sub, domain]) => `${sub}.${domain}.com`),
+    fc
+      .tuple(
+        fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), { minLength: 2, maxLength: 8 }),
+        fc.stringOf(fc.constantFrom(...'abcdefghijklmnopqrstuvwxyz'.split('')), { minLength: 2, maxLength: 10 }),
+      )
+      .map(([sub, domain]) => `${sub}.${domain}.com`),
     // Known hosts
     fc.constantFrom('api.openai.com', 'registry.npmjs.org', 'github.com', 'localhost'),
   );
@@ -38,7 +62,8 @@ export function arbitraryCommand(): fc.Arbitrary<string> {
 }
 
 export function arbitraryFsEvent(runId: string): fc.Arbitrary<TraceEvent> {
-  return fc.tuple(arbitraryPath(), fc.constantFrom('fs_write', 'fs_read', 'fs_delete') as fc.Arbitrary<EffectCategory>)
+  return fc
+    .tuple(arbitraryPath(), fc.constantFrom('fs_write', 'fs_read', 'fs_delete') as fc.Arbitrary<EffectCategory>)
     .map(([p, category]) => ({
       id: `evt_${Math.random().toString(36).slice(2, 10)}`,
       timestamp: Date.now(),
@@ -53,7 +78,12 @@ export function arbitraryFsEvent(runId: string): fc.Arbitrary<TraceEvent> {
 }
 
 export function arbitraryNetEvent(runId: string): fc.Arbitrary<TraceEvent> {
-  return fc.tuple(arbitraryHostname(), fc.constantFrom('GET', 'POST', 'PUT', 'DELETE'), fc.constantFrom('http', 'https') as fc.Arbitrary<'http' | 'https'>)
+  return fc
+    .tuple(
+      arbitraryHostname(),
+      fc.constantFrom('GET', 'POST', 'PUT', 'DELETE'),
+      fc.constantFrom('http', 'https') as fc.Arbitrary<'http' | 'https'>,
+    )
     .map(([host, method, protocol]) => ({
       id: `evt_${Math.random().toString(36).slice(2, 10)}`,
       timestamp: Date.now(),
@@ -68,7 +98,8 @@ export function arbitraryNetEvent(runId: string): fc.Arbitrary<TraceEvent> {
 }
 
 export function arbitraryExecEvent(runId: string): fc.Arbitrary<TraceEvent> {
-  return fc.tuple(arbitraryCommand(), fc.array(fc.string({ minLength: 1, maxLength: 20 }), { minLength: 0, maxLength: 5 }))
+  return fc
+    .tuple(arbitraryCommand(), fc.array(fc.string({ minLength: 1, maxLength: 20 }), { minLength: 0, maxLength: 5 }))
     .map(([cmd, args]) => ({
       id: `evt_${Math.random().toString(36).slice(2, 10)}`,
       timestamp: Date.now(),
@@ -83,8 +114,9 @@ export function arbitraryExecEvent(runId: string): fc.Arbitrary<TraceEvent> {
 }
 
 export function arbitrarySensitiveEvent(runId: string): fc.Arbitrary<TraceEvent> {
-  return fc.constantFrom('OPENAI_API_KEY', 'AWS_SECRET_ACCESS_KEY', 'GITHUB_TOKEN', 'DB_PASSWORD', 'MY_SECRET')
-    .map(key => ({
+  return fc
+    .constantFrom('OPENAI_API_KEY', 'AWS_SECRET_ACCESS_KEY', 'GITHUB_TOKEN', 'DB_PASSWORD', 'MY_SECRET')
+    .map((key) => ({
       id: `evt_${Math.random().toString(36).slice(2, 10)}`,
       timestamp: Date.now(),
       run_id: runId,
@@ -118,16 +150,18 @@ export function arbitraryEffectSignature(): fc.Arbitrary<EffectSignature> {
       node_version: 'v20.0.0',
     }),
     effects: fc.record({
-      fs_writes: fc.array(arbitraryPath(), { maxLength: 10 }).map(arr => [...new Set(arr)].sort()),
-      fs_reads_external: fc.array(arbitraryPath(), { maxLength: 5 }).map(arr => [...new Set(arr)].sort()),
-      fs_deletes: fc.array(arbitraryPath(), { maxLength: 3 }).map(arr => [...new Set(arr)].sort()),
-      net_protocols: fc.subarray(['http', 'https']).map(arr => arr.sort()),
-      net_etld_plus_1: fc.array(arbitraryHostname(), { maxLength: 5 }).map(arr => [...new Set(arr)].sort()),
-      net_hosts: fc.array(arbitraryHostname(), { maxLength: 5 }).map(arr => [...new Set(arr)].sort()),
-      net_ports: fc.subarray([80, 443, 8080, 3000]).map(arr => arr.sort((a, b) => a - b)),
-      exec_commands: fc.array(arbitraryCommand(), { maxLength: 5 }).map(arr => [...new Set(arr)].sort()),
-      exec_argv: fc.array(fc.json(), { maxLength: 3 }).map(arr => [...new Set(arr)].sort()),
-      sensitive_keys_accessed: fc.subarray(['OPENAI_API_KEY', 'AWS_SECRET_ACCESS_KEY', 'GITHUB_TOKEN']).map(arr => arr.sort()),
+      fs_writes: fc.array(arbitraryPath(), { maxLength: 10 }).map((arr) => [...new Set(arr)].sort()),
+      fs_reads_external: fc.array(arbitraryPath(), { maxLength: 5 }).map((arr) => [...new Set(arr)].sort()),
+      fs_deletes: fc.array(arbitraryPath(), { maxLength: 3 }).map((arr) => [...new Set(arr)].sort()),
+      net_protocols: fc.subarray(['http', 'https']).map((arr) => arr.sort()),
+      net_etld_plus_1: fc.array(arbitraryHostname(), { maxLength: 5 }).map((arr) => [...new Set(arr)].sort()),
+      net_hosts: fc.array(arbitraryHostname(), { maxLength: 5 }).map((arr) => [...new Set(arr)].sort()),
+      net_ports: fc.subarray([80, 443, 8080, 3000]).map((arr) => arr.sort((a, b) => a - b)),
+      exec_commands: fc.array(arbitraryCommand(), { maxLength: 5 }).map((arr) => [...new Set(arr)].sort()),
+      exec_argv: fc.array(fc.json(), { maxLength: 3 }).map((arr) => [...new Set(arr)].sort()),
+      sensitive_keys_accessed: fc
+        .subarray(['OPENAI_API_KEY', 'AWS_SECRET_ACCESS_KEY', 'GITHUB_TOKEN'])
+        .map((arr) => arr.sort()),
     }),
   });
 }
@@ -145,7 +179,15 @@ export function defaultConfig() {
     redaction: { redact_paths: [], redact_urls: [], hash_values: false },
     policy: {
       filesystem: { allow_writes: ['./workspace/**'], block_writes: ['/etc/**'], enforce_allowlist: false },
-      network: { allow_etld_plus_1: [], allow_hosts: [], enforce_allowlist: false, allow_protocols: [], block_protocols: [], allow_ports: [], block_ports: [] },
+      network: {
+        allow_etld_plus_1: [],
+        allow_hosts: [],
+        enforce_allowlist: false,
+        allow_protocols: [],
+        block_protocols: [],
+        allow_ports: [],
+        block_ports: [],
+      },
       exec: { allow_commands: ['node', 'npm', 'git'], block_commands: ['rm'], enforce_allowlist: false },
       sensitive: { block_env: ['AWS_*', 'OPENAI_*'], block_file_globs: ['~/.ssh/**'] },
     },

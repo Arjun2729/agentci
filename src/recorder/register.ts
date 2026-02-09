@@ -18,14 +18,18 @@ function now(): number {
   return Date.now();
 }
 
-function buildLifecycle(ctx: RecorderContext, stage: 'start' | 'stop' | 'error', metadata?: Record<string, unknown>): TraceEvent {
+function buildLifecycle(
+  ctx: RecorderContext,
+  stage: 'start' | 'stop' | 'error',
+  metadata?: Record<string, unknown>,
+): TraceEvent {
   return {
     id: randomUUID(),
     timestamp: now(),
     run_id: ctx.runId,
     type: 'lifecycle',
     data: { stage },
-    metadata
+    metadata,
   };
 }
 
@@ -44,8 +48,8 @@ function patchEnvSensitive(ctx: RecorderContext): void {
           data: {
             category: 'sensitive_access',
             kind: 'observed',
-            sensitive: { type: 'env_var', key_name: prop }
-          }
+            sensitive: { type: 'env_var', key_name: prop },
+          },
         };
         ctx.writer.write(event);
         enforceEffect(ctx, event.data as any);
@@ -67,8 +71,8 @@ function patchEnvSensitive(ctx: RecorderContext): void {
           data: {
             category: 'sensitive_access',
             kind: 'observed',
-            sensitive: { type: 'env_var', key_name: prop }
-          }
+            sensitive: { type: 'env_var', key_name: prop },
+          },
         };
         ctx.writer.write(event);
         enforceEffect(ctx, event.data as any);
@@ -85,14 +89,14 @@ function patchEnvSensitive(ctx: RecorderContext): void {
           data: {
             category: 'sensitive_access',
             kind: 'observed',
-            sensitive: { type: 'env_var', key_name: prop }
-          }
+            sensitive: { type: 'env_var', key_name: prop },
+          },
         };
         ctx.writer.write(event);
         enforceEffect(ctx, event.data as any);
       }
       return Reflect.has(target, prop);
-    }
+    },
   });
   process.env = proxy;
   // Also patch globalThis.process.env to prevent bypass via globalThis
@@ -122,9 +126,9 @@ function initRecorder(): void {
     originals: {
       appendFileSync: fs.appendFileSync,
       mkdirSync: fs.mkdirSync,
-      writeFileSync: fs.writeFileSync
+      writeFileSync: fs.writeFileSync,
     },
-    state
+    state,
   });
 
   const ctx: RecorderContext = {
@@ -139,16 +143,16 @@ function initRecorder(): void {
       fs,
       appendFileSync: fs.appendFileSync,
       writeFileSync: fs.writeFileSync,
-      mkdirSync: fs.mkdirSync
-    }
+      mkdirSync: fs.mkdirSync,
+    },
   };
 
   const startedAt = now();
   writer.write(
     buildLifecycle(ctx, 'start', {
       node_version: process.version,
-      platform: `${process.platform}-${process.arch}`
-    })
+      platform: `${process.platform}-${process.arch}`,
+    }),
   );
 
   try {

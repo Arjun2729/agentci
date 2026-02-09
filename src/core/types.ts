@@ -1,12 +1,6 @@
 export type TraceEventType = 'lifecycle' | 'tool_call' | 'tool_result' | 'effect';
 
-export type EffectCategory =
-  | 'fs_write'
-  | 'fs_read'
-  | 'fs_delete'
-  | 'net_outbound'
-  | 'exec'
-  | 'sensitive_access';
+export type EffectCategory = 'fs_write' | 'fs_read' | 'fs_delete' | 'net_outbound' | 'exec' | 'sensitive_access';
 
 export type EffectKind = 'declared' | 'observed' | 'inferred';
 

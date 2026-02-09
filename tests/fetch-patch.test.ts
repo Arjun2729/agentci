@@ -72,9 +72,7 @@ describe('fetch() patch integration', () => {
     `,
     );
 
-    const netEvents = events.filter(
-      (e) => e.type === 'effect' && e.data.category === 'net_outbound',
-    );
+    const netEvents = events.filter((e) => e.type === 'effect' && e.data.category === 'net_outbound');
     expect(netEvents.length).toBeGreaterThanOrEqual(1);
     expect(netEvents[0].data.net.host_raw).toBe('api.example.com');
     expect(netEvents[0].data.net.protocol).toBe('https');
@@ -89,9 +87,7 @@ describe('fetch() patch integration', () => {
     `,
     );
 
-    const netEvents = events.filter(
-      (e) => e.type === 'effect' && e.data.category === 'net_outbound',
-    );
+    const netEvents = events.filter((e) => e.type === 'effect' && e.data.category === 'net_outbound');
     expect(netEvents.length).toBeGreaterThanOrEqual(1);
     expect(netEvents[0].data.net.method).toBe('POST');
   });
@@ -106,9 +102,7 @@ describe('fetch() patch integration', () => {
     `,
     );
 
-    const netEvents = events.filter(
-      (e) => e.type === 'effect' && e.data.category === 'net_outbound',
-    );
+    const netEvents = events.filter((e) => e.type === 'effect' && e.data.category === 'net_outbound');
     expect(netEvents.length).toBeGreaterThanOrEqual(1);
     expect(netEvents[0].data.net.host_raw).toBe('cdn.example.org');
   });

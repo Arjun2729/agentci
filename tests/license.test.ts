@@ -120,9 +120,7 @@ describe('license', () => {
     });
     // Tamper with payload (change tier to enterprise)
     const parts = token.split('.');
-    const tamperedPayload = base64UrlEncode(
-      JSON.stringify({ tier: 'enterprise', features: ['remote', 'annpack'] })
-    );
+    const tamperedPayload = base64UrlEncode(JSON.stringify({ tier: 'enterprise', features: ['remote', 'annpack'] }));
     const tampered = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
     fs.writeFileSync(path.join(tmpDir, 'license'), tampered);
 
@@ -144,9 +142,7 @@ describe('license', () => {
   });
 
   it('requireFeature throws for missing feature', () => {
-    expect(() => requireFeature('remote', 'Remote Control Plane', tmpDir)).toThrow(
-      /requires an AgentCI Pro license/
-    );
+    expect(() => requireFeature('remote', 'Remote Control Plane', tmpDir)).toThrow(/requires an AgentCI Pro license/);
   });
 
   it('requireFeature passes for licensed feature', () => {

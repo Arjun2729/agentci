@@ -44,9 +44,7 @@ export function detectAnomaly(
 
   similarities.sort((a, b) => b.similarity - a.similarity);
   const nearest = similarities.slice(0, k);
-  const avgSimilarity = nearest.length > 0
-    ? nearest.reduce((sum, n) => sum + n.similarity, 0) / nearest.length
-    : 0;
+  const avgSimilarity = nearest.length > 0 ? nearest.reduce((sum, n) => sum + n.similarity, 0) / nearest.length : 0;
 
   return {
     is_anomaly: avgSimilarity < threshold,

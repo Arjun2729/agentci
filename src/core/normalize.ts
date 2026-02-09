@@ -129,10 +129,7 @@ export function normalizeExecCommand(command: string): string {
 
 export function normalizeExecArgv(argv: string[], config: PolicyConfig): string[] {
   if (!argv.length) return argv;
-  const patterns = compilePatterns([
-    ...DEFAULT_MASK_PATTERNS,
-    ...(config.normalization.exec.mask_patterns || []),
-  ]);
+  const patterns = compilePatterns([...DEFAULT_MASK_PATTERNS, ...(config.normalization.exec.mask_patterns || [])]);
   const masked = argv.map((arg) => maskArg(String(arg), patterns));
   const mode = config.normalization.exec.argv_mode;
 

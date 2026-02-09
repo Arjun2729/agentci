@@ -15,13 +15,13 @@ function buildEvent(ctx: RecorderContext, data: EffectEventData): TraceEvent {
     timestamp: now(),
     run_id: ctx.runId,
     type: 'effect',
-    data
+    data,
   };
 }
 
 function extractFetch(
   input: any,
-  init?: any
+  init?: any,
 ): { host: string; method: string; protocol: 'http' | 'https'; port?: number } | null {
   try {
     if (typeof input === 'string') {
@@ -30,7 +30,7 @@ function extractFetch(
         host: url.hostname,
         method: init?.method || 'GET',
         protocol: url.protocol === 'https:' ? 'https' : 'http',
-        port: url.port ? Number(url.port) : undefined
+        port: url.port ? Number(url.port) : undefined,
       };
     }
     if (input instanceof URL) {
@@ -38,7 +38,7 @@ function extractFetch(
         host: input.hostname,
         method: init?.method || 'GET',
         protocol: input.protocol === 'https:' ? 'https' : 'http',
-        port: input.port ? Number(input.port) : undefined
+        port: input.port ? Number(input.port) : undefined,
       };
     }
     if (input && typeof input === 'object' && 'url' in input) {
@@ -47,7 +47,7 @@ function extractFetch(
         host: url.hostname,
         method: (input as any).method || init?.method || 'GET',
         protocol: url.protocol === 'https:' ? 'https' : 'http',
-        port: url.port ? Number(url.port) : undefined
+        port: url.port ? Number(url.port) : undefined,
       };
     }
   } catch {
@@ -66,8 +66,8 @@ function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: strin
         host_etld_plus_1: toEtldPlus1(host),
         method,
         protocol,
-        port
-      }
+        port,
+      },
     };
     ctx.writer.write(buildEvent(ctx, data));
     enforceEffect(ctx, data);

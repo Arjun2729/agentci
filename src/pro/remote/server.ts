@@ -8,7 +8,10 @@ import { requireFeature } from '../../core/license.js';
 const MAX_BODY_SIZE = 1_024_000; // 1MB
 const RATE_LIMIT_PER_MIN = 60;
 
-interface RateEntry { count: number; windowStart: number }
+interface RateEntry {
+  count: number;
+  windowStart: number;
+}
 
 const rateLimiter = new Map<string, RateEntry>();
 
@@ -139,8 +142,8 @@ export function serveRemote(dataDir: string, port: number, keysFile: string, age
         try {
           const entries = fs.readdirSync(teamRunsDir, { withFileTypes: true });
           const runs = entries
-            .filter(e => e.isDirectory())
-            .map(e => {
+            .filter((e) => e.isDirectory())
+            .map((e) => {
               const sigPath = path.join(teamRunsDir, e.name, 'signature.json');
               const metaPath = path.join(teamRunsDir, e.name, 'metadata.json');
               return {
@@ -183,9 +186,7 @@ export function serveRemote(dataDir: string, port: number, keysFile: string, age
         }
 
         const signature = JSON.parse(fs.readFileSync(sigPath, 'utf8'));
-        const findings = fs.existsSync(findingsPath)
-          ? JSON.parse(fs.readFileSync(findingsPath, 'utf8'))
-          : [];
+        const findings = fs.existsSync(findingsPath) ? JSON.parse(fs.readFileSync(findingsPath, 'utf8')) : [];
 
         jsonResponse(res, 200, { run_id: runId, signature, findings });
         return;

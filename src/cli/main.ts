@@ -277,7 +277,7 @@ program
       AGENTCI_RUN_DIR: runDir,
       AGENTCI_RUN_ID: runId,
       AGENTCI_WORKSPACE_ROOT: cwd,
-      AGENTCI_VERSION: packageJson.version
+      AGENTCI_VERSION: packageJson.version,
     };
     if (options.enforce) {
       env.AGENTCI_ENFORCE = '1';
@@ -292,7 +292,7 @@ program
 
     const child = spawn(cmdArgs[0], cmdArgs.slice(1), {
       stdio: 'inherit',
-      env: { ...env, NODE_OPTIONS: nodeOptions }
+      env: { ...env, NODE_OPTIONS: nodeOptions },
     });
 
     child.on('error', (err: unknown) => {
@@ -543,9 +543,7 @@ program
 
     const format = parseFormat(options.format);
     if (format === 'json') {
-      const driftHints = Object.fromEntries(
-        Object.keys(diff.drift).map((key) => [key, driftHint(key)]),
-      );
+      const driftHints = Object.fromEntries(Object.keys(diff.drift).map((key) => [key, driftHint(key)]));
       const payload = {
         summary,
         findings,
@@ -577,7 +575,8 @@ program
       // eslint-disable-next-line no-console
       console.log(chalk.bold('\nPOLICY VIOLATIONS'));
       findings.forEach((finding) => {
-        const color = finding.severity === 'BLOCK' ? chalk.red : finding.severity === 'WARN' ? chalk.yellow : chalk.gray;
+        const color =
+          finding.severity === 'BLOCK' ? chalk.red : finding.severity === 'WARN' ? chalk.yellow : chalk.gray;
         console.log(color(`- ${formatFinding(finding)}`));
       });
     }
@@ -627,9 +626,7 @@ program
 
     const html = generateReportHtml({ baseline, current, diff, findings, trace });
 
-    const outPath = options.out
-      ? options.out
-      : path.join(path.dirname(currentPath), 'report.html');
+    const outPath = options.out ? options.out : path.join(path.dirname(currentPath), 'report.html');
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     fs.writeFileSync(outPath, html, 'utf8');
 
@@ -713,7 +710,8 @@ program
       // eslint-disable-next-line no-console
       console.log(chalk.bold('\nPOLICY VIOLATIONS'));
       findings.forEach((finding) => {
-        const color = finding.severity === 'BLOCK' ? chalk.red : finding.severity === 'WARN' ? chalk.yellow : chalk.gray;
+        const color =
+          finding.severity === 'BLOCK' ? chalk.red : finding.severity === 'WARN' ? chalk.yellow : chalk.gray;
         console.log(color(`- ${formatFinding(finding)}`));
       });
     }
@@ -729,82 +727,88 @@ program
   .option('--attestation <path>', 'Optional attestation.json to validate')
   .option('--config <path>', 'Optional config.yaml to verify policy version')
   .option('--format <format>', 'Output format: text|json', 'text')
-  .action((input: string, options: { signature?: string; baseline?: string; attestation?: string; config?: string; format?: string }) => {
-    const { tracePath, runDir } = resolveTraceInput(input);
-    const runId = path.basename(runDir);
-    const secret = loadSecret(process.cwd(), runId);
-    const result = verifyTraceIntegrity(tracePath, runId, secret);
-    const format = parseFormat(options.format);
-    const checks: Record<string, { valid: boolean; details: string }> = {
-      trace: result,
-    };
+  .action(
+    (
+      input: string,
+      options: { signature?: string; baseline?: string; attestation?: string; config?: string; format?: string },
+    ) => {
+      const { tracePath, runDir } = resolveTraceInput(input);
+      const runId = path.basename(runDir);
+      const secret = loadSecret(process.cwd(), runId);
+      const result = verifyTraceIntegrity(tracePath, runId, secret);
+      const format = parseFormat(options.format);
+      const checks: Record<string, { valid: boolean; details: string }> = {
+        trace: result,
+      };
 
-    if (options.signature) {
-      const sigResult = verifySignatureIntegrity(options.signature, runId, secret);
-      checks.signature_integrity = sigResult;
-    }
-
-    if (options.attestation) {
-      try {
-        const attestation = JSON.parse(fs.readFileSync(options.attestation, 'utf8'));
-        if (options.signature) {
-          const digest = sha256File(options.signature);
-          checks.signature = {
-            valid: digest === attestation.signature_digest,
-            details: digest === attestation.signature_digest ? 'Signature digest match' : 'Signature digest mismatch',
-          };
-        }
-        if (options.baseline) {
-          const digest = sha256File(options.baseline);
-          checks.baseline = {
-            valid: digest === attestation.baseline_digest,
-            details: digest === attestation.baseline_digest ? 'Baseline digest match' : 'Baseline digest mismatch',
-          };
-        }
-        if (options.signature) {
-          const signature = loadSignature(options.signature);
-          checks.policy = {
-            valid:
-              signature.meta.signature_version === attestation.signature_version &&
-              signature.meta.normalization_rules_version === attestation.normalization_rules_version,
-            details: 'Signature version/normalization match attestation',
-          };
-        }
-        const configPath = options.config || resolveConfigPath(process.cwd());
-        if (fs.existsSync(configPath) && attestation.policy_version !== undefined) {
-          const config = loadConfig(configPath, process.cwd());
-          checks.policy_version = {
-            valid: config.version === attestation.policy_version,
-            details: config.version === attestation.policy_version ? 'Policy version match' : 'Policy version mismatch',
-          };
-        }
-      } catch (err) {
-        checks.attestation = { valid: false, details: `Failed to load attestation: ${err}` };
+      if (options.signature) {
+        const sigResult = verifySignatureIntegrity(options.signature, runId, secret);
+        checks.signature_integrity = sigResult;
       }
-    }
 
-    const allValid = Object.values(checks).every((check) => check.valid);
-    if (format === 'json') {
-      // eslint-disable-next-line no-console
-      console.log(JSON.stringify({ valid: allValid, checks }, null, 2));
-      if (!allValid) process.exit(1);
-      return;
-    }
+      if (options.attestation) {
+        try {
+          const attestation = JSON.parse(fs.readFileSync(options.attestation, 'utf8'));
+          if (options.signature) {
+            const digest = sha256File(options.signature);
+            checks.signature = {
+              valid: digest === attestation.signature_digest,
+              details: digest === attestation.signature_digest ? 'Signature digest match' : 'Signature digest mismatch',
+            };
+          }
+          if (options.baseline) {
+            const digest = sha256File(options.baseline);
+            checks.baseline = {
+              valid: digest === attestation.baseline_digest,
+              details: digest === attestation.baseline_digest ? 'Baseline digest match' : 'Baseline digest mismatch',
+            };
+          }
+          if (options.signature) {
+            const signature = loadSignature(options.signature);
+            checks.policy = {
+              valid:
+                signature.meta.signature_version === attestation.signature_version &&
+                signature.meta.normalization_rules_version === attestation.normalization_rules_version,
+              details: 'Signature version/normalization match attestation',
+            };
+          }
+          const configPath = options.config || resolveConfigPath(process.cwd());
+          if (fs.existsSync(configPath) && attestation.policy_version !== undefined) {
+            const config = loadConfig(configPath, process.cwd());
+            checks.policy_version = {
+              valid: config.version === attestation.policy_version,
+              details:
+                config.version === attestation.policy_version ? 'Policy version match' : 'Policy version mismatch',
+            };
+          }
+        } catch (err) {
+          checks.attestation = { valid: false, details: `Failed to load attestation: ${err}` };
+        }
+      }
 
-    if (allValid) {
-      // eslint-disable-next-line no-console
-      console.log(chalk.green(`PASS: ${result.details}`));
-    } else {
-      // eslint-disable-next-line no-console
-      console.log(chalk.red(`FAIL: ${result.details}`));
-      Object.entries(checks).forEach(([key, check]) => {
-        if (check.valid) return;
+      const allValid = Object.values(checks).every((check) => check.valid);
+      if (format === 'json') {
         // eslint-disable-next-line no-console
-        console.log(chalk.red(`- ${key}: ${check.details}`));
-      });
-      process.exit(1);
-    }
-  });
+        console.log(JSON.stringify({ valid: allValid, checks }, null, 2));
+        if (!allValid) process.exit(1);
+        return;
+      }
+
+      if (allValid) {
+        // eslint-disable-next-line no-console
+        console.log(chalk.green(`PASS: ${result.details}`));
+      } else {
+        // eslint-disable-next-line no-console
+        console.log(chalk.red(`FAIL: ${result.details}`));
+        Object.entries(checks).forEach(([key, check]) => {
+          if (check.valid) return;
+          // eslint-disable-next-line no-console
+          console.log(chalk.red(`- ${key}: ${check.details}`));
+        });
+        process.exit(1);
+      }
+    },
+  );
 
 program
   .command('serve')
@@ -942,9 +946,7 @@ program
   .option('--limit <n>', 'Number of results', '10')
   .option('--runs-dir <path>', 'Runs directory', '.agentci/runs')
   .action((input: string, options: { limit: string; runsDir: string }) => {
-    const sig = loadSignature(
-      fs.statSync(input).isDirectory() ? path.join(input, 'signature.json') : input,
-    );
+    const sig = loadSignature(fs.statSync(input).isDirectory() ? path.join(input, 'signature.json') : input);
     const runsDir = path.resolve(process.cwd(), options.runsDir);
     const limit = parseInt(options.limit, 10) || 10;
     const results = findSimilarRuns(sig, runsDir, limit);
@@ -972,16 +974,18 @@ program
   .option('--threshold <0-1>', 'Anomaly threshold', '0.7')
   .option('--runs-dir <path>', 'Runs directory', '.agentci/runs')
   .action((input: string, options: { threshold: string; runsDir: string }) => {
-    const sig = loadSignature(
-      fs.statSync(input).isDirectory() ? path.join(input, 'signature.json') : input,
-    );
+    const sig = loadSignature(fs.statSync(input).isDirectory() ? path.join(input, 'signature.json') : input);
     const runsDir = path.resolve(process.cwd(), options.runsDir);
     const threshold = parseFloat(options.threshold) || 0.7;
     const result = detectAnomaly(sig, runsDir, { threshold });
 
     if (result.is_anomaly) {
       // eslint-disable-next-line no-console
-      console.log(chalk.red(`ANOMALY DETECTED (score: ${(result.score * 100).toFixed(1)}%, threshold: ${(result.threshold * 100).toFixed(1)}%)`));
+      console.log(
+        chalk.red(
+          `ANOMALY DETECTED (score: ${(result.score * 100).toFixed(1)}%, threshold: ${(result.threshold * 100).toFixed(1)}%)`,
+        ),
+      );
       // eslint-disable-next-line no-console
       console.log(chalk.bold('Nearest neighbors:'));
       for (const n of result.nearest_neighbors) {
@@ -991,7 +995,11 @@ program
       process.exit(1);
     } else {
       // eslint-disable-next-line no-console
-      console.log(chalk.green(`NORMAL (score: ${(result.score * 100).toFixed(1)}%, threshold: ${(result.threshold * 100).toFixed(1)}%)`));
+      console.log(
+        chalk.green(
+          `NORMAL (score: ${(result.score * 100).toFixed(1)}%, threshold: ${(result.threshold * 100).toFixed(1)}%)`,
+        ),
+      );
     }
   });
 

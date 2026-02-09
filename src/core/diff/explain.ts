@@ -6,7 +6,7 @@ export function summarizeFindings(findings: PolicyFinding[]): {
 } {
   return {
     hasBlock: findings.some((f) => f.severity === 'BLOCK'),
-    hasWarn: findings.some((f) => f.severity === 'WARN')
+    hasWarn: findings.some((f) => f.severity === 'WARN'),
   };
 }
 

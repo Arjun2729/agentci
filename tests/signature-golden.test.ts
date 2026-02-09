@@ -62,7 +62,7 @@ describe('golden signature tests', () => {
 
     expect(sig.effects.fs_writes).toContain('src/héllo wörld.ts');
     expect(sig.effects.net_hosts).toContain(
-      'this-is-a-really-long-hostname-that-tests-boundary-conditions.example.com'
+      'this-is-a-really-long-hostname-that-tests-boundary-conditions.example.com',
     );
     // /usr/local/bin/node should normalize to just 'node'
     expect(sig.effects.exec_commands).toEqual(['node']);

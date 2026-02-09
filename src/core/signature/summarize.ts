@@ -10,7 +10,9 @@ function sorted(values: Set<string>): string[] {
 }
 
 function sortedNumbers(values: Set<number>): number[] {
-  return Array.from(values).filter((value) => Number.isFinite(value)).sort((a, b) => a - b);
+  return Array.from(values)
+    .filter((value) => Number.isFinite(value))
+    .sort((a, b) => a - b);
 }
 
 function detectAdapter(events: TraceEvent[]): 'node-hook' | 'openclaw+node-hook' {
@@ -31,7 +33,7 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
     net_ports: new Set<number>(),
     exec_commands: new Set<string>(),
     exec_argv: new Set<string>(),
-    sensitive_keys_accessed: new Set<string>()
+    sensitive_keys_accessed: new Set<string>(),
   };
 
   for (const event of events) {
@@ -69,12 +71,7 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
         effects.net_protocols.add(data.net.protocol);
         effects.net_hosts.add(host);
         effects.net_etld_plus_1.add(toEtldPlus1(host));
-        const port =
-          typeof data.net.port === 'number'
-            ? data.net.port
-            : data.net.protocol === 'https'
-              ? 443
-              : 80;
+        const port = typeof data.net.port === 'number' ? data.net.port : data.net.protocol === 'https' ? 443 : 80;
         effects.net_ports.add(port);
         break;
       }
@@ -107,7 +104,7 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
       platform: `${process.platform}-${process.arch}`,
       adapter: detectAdapter(events),
       scenario_id: 'default',
-      node_version: process.version
+      node_version: process.version,
     },
     effects: {
       fs_writes: sorted(effects.fs_writes),
@@ -119,8 +116,8 @@ export function summarizeTrace(tracePath: string, config: PolicyConfig, agentciV
       net_ports: sortedNumbers(effects.net_ports),
       exec_commands: sorted(effects.exec_commands),
       exec_argv: sorted(effects.exec_argv),
-      sensitive_keys_accessed: sorted(effects.sensitive_keys_accessed)
-    }
+      sensitive_keys_accessed: sorted(effects.sensitive_keys_accessed),
+    },
   };
 
   return signature;

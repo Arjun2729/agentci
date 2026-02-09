@@ -25,44 +25,38 @@ describe('property-based tests', () => {
 
   function writeTrace(events: TraceEvent[]): string {
     const tracePath = path.join(tmpDir, 'trace.jsonl');
-    const content = events.map(e => JSON.stringify(e)).join('\n') + '\n';
+    const content = events.map((e) => JSON.stringify(e)).join('\n') + '\n';
     fs.writeFileSync(tracePath, content);
     return tracePath;
   }
 
   it('signature generation is deterministic', () => {
     fc.assert(
-      fc.property(
-        fc.array(arbitraryTraceEvent('prop-run'), { minLength: 1, maxLength: 20 }),
-        (events) => {
-          const tracePath = writeTrace(events);
-          const config = defaultConfig();
-          const sig1 = summarizeTrace(tracePath, config, '0.1.0');
-          const sig2 = summarizeTrace(tracePath, config, '0.1.0');
-          expect(sig1.effects).toEqual(sig2.effects);
-        }
-      ),
-      { numRuns: 50 }
+      fc.property(fc.array(arbitraryTraceEvent('prop-run'), { minLength: 1, maxLength: 20 }), (events) => {
+        const tracePath = writeTrace(events);
+        const config = defaultConfig();
+        const sig1 = summarizeTrace(tracePath, config, '0.1.0');
+        const sig2 = summarizeTrace(tracePath, config, '0.1.0');
+        expect(sig1.effects).toEqual(sig2.effects);
+      }),
+      { numRuns: 50 },
     );
   });
 
   it('diff of identical signatures produces empty drift', () => {
     fc.assert(
-      fc.property(
-        fc.array(arbitraryTraceEvent('diff-run'), { minLength: 1, maxLength: 15 }),
-        (events) => {
-          const tracePath = writeTrace(events);
-          const config = defaultConfig();
-          const sig = summarizeTrace(tracePath, config, '0.1.0');
-          const result = diffSignatures(sig, sig);
+      fc.property(fc.array(arbitraryTraceEvent('diff-run'), { minLength: 1, maxLength: 15 }), (events) => {
+        const tracePath = writeTrace(events);
+        const config = defaultConfig();
+        const sig = summarizeTrace(tracePath, config, '0.1.0');
+        const result = diffSignatures(sig, sig);
 
-          // All drift arrays should be empty
-          for (const key of Object.keys(result.drift) as (keyof typeof result.drift)[]) {
-            expect(result.drift[key]).toEqual([]);
-          }
+        // All drift arrays should be empty
+        for (const key of Object.keys(result.drift) as (keyof typeof result.drift)[]) {
+          expect(result.drift[key]).toEqual([]);
         }
-      ),
-      { numRuns: 50 }
+      }),
+      { numRuns: 50 },
     );
   });
 
@@ -82,9 +76,9 @@ describe('property-based tests', () => {
           if (first === null) return; // filtered by ignore_globs
           const second = normalizeFsPath(first, config);
           expect(second).toBe(first);
-        }
+        },
       ),
-      { numRuns: 100 }
+      { numRuns: 100 },
     );
   });
 
@@ -106,26 +100,23 @@ describe('property-based tests', () => {
           const hmac2 = computeTraceHmac(trace2, 'run1', secret);
 
           expect(hmac1).not.toBe(hmac2);
-        }
+        },
       ),
-      { numRuns: 50 }
+      { numRuns: 50 },
     );
   });
 
   it('JSONL parser never throws on arbitrary input', () => {
     fc.assert(
-      fc.property(
-        fc.string({ minLength: 0, maxLength: 500 }),
-        (content) => {
-          const tracePath = path.join(tmpDir, 'fuzz.jsonl');
-          fs.writeFileSync(tracePath, content);
+      fc.property(fc.string({ minLength: 0, maxLength: 500 }), (content) => {
+        const tracePath = path.join(tmpDir, 'fuzz.jsonl');
+        fs.writeFileSync(tracePath, content);
 
-          // Should never throw
-          const result = readJsonl(tracePath);
-          expect(Array.isArray(result)).toBe(true);
-        }
-      ),
-      { numRuns: 100 }
+        // Should never throw
+        const result = readJsonl(tracePath);
+        expect(Array.isArray(result)).toBe(true);
+      }),
+      { numRuns: 100 },
     );
   });
 
@@ -153,38 +144,35 @@ describe('property-based tests', () => {
               expect(set2.has(item)).toBe(true);
             }
           }
-        }
+        },
       ),
-      { numRuns: 30 }
+      { numRuns: 30 },
     );
   });
 
   it('signature effect arrays are always sorted', () => {
     fc.assert(
-      fc.property(
-        fc.array(arbitraryTraceEvent('sort-run'), { minLength: 1, maxLength: 20 }),
-        (events) => {
-          const tracePath = writeTrace(events);
-          const config = defaultConfig();
-          const sig = summarizeTrace(tracePath, config, '0.1.0');
+      fc.property(fc.array(arbitraryTraceEvent('sort-run'), { minLength: 1, maxLength: 20 }), (events) => {
+        const tracePath = writeTrace(events);
+        const config = defaultConfig();
+        const sig = summarizeTrace(tracePath, config, '0.1.0');
 
-          for (const key of Object.keys(sig.effects) as (keyof typeof sig.effects)[]) {
-            const arr = sig.effects[key];
-            if (key === 'net_ports') {
-              const nums = arr as number[];
-              for (let i = 1; i < nums.length; i++) {
-                expect(nums[i]).toBeGreaterThanOrEqual(nums[i - 1]);
-              }
-            } else {
-              const strs = arr as string[];
-              for (let i = 1; i < strs.length; i++) {
-                expect(strs[i] >= strs[i - 1]).toBe(true);
-              }
+        for (const key of Object.keys(sig.effects) as (keyof typeof sig.effects)[]) {
+          const arr = sig.effects[key];
+          if (key === 'net_ports') {
+            const nums = arr as number[];
+            for (let i = 1; i < nums.length; i++) {
+              expect(nums[i]).toBeGreaterThanOrEqual(nums[i - 1]);
+            }
+          } else {
+            const strs = arr as string[];
+            for (let i = 1; i < strs.length; i++) {
+              expect(strs[i] >= strs[i - 1]).toBe(true);
             }
           }
         }
-      ),
-      { numRuns: 50 }
+      }),
+      { numRuns: 50 },
     );
   });
 });

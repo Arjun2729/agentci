@@ -20,7 +20,7 @@ function escapeHtml(value: string): string {
 function renderList(
   title: string,
   items: string[],
-  options?: { id?: string; evidence?: Record<string, number> }
+  options?: { id?: string; evidence?: Record<string, number> },
 ): string {
   const safeItems = items
     .map((item) => {
@@ -64,7 +64,11 @@ export function generateReportHtml(input: ReportInput): string {
     { label: 'New network egress', count: input.diff.drift.net_hosts.length, anchor: 'drift-net-hosts' },
     { label: 'New files touched', count: input.diff.drift.fs_writes.length, anchor: 'drift-fs-writes' },
     { label: 'New subprocesses', count: input.diff.drift.exec_commands.length, anchor: 'drift-exec-commands' },
-    { label: 'New env keys accessed', count: input.diff.drift.sensitive_keys_accessed.length, anchor: 'drift-sensitive' },
+    {
+      label: 'New env keys accessed',
+      count: input.diff.drift.sensitive_keys_accessed.length,
+      anchor: 'drift-sensitive',
+    },
   ];
 
   const topDiffs = Object.entries(input.diff.drift)
@@ -244,7 +248,9 @@ export function generateReportHtml(input: ReportInput): string {
           evidence: traceEvidence(input.diff.drift.sensitive_keys_accessed),
         })}
       </div>
-      ${input.trace && input.trace.length ? `
+      ${
+        input.trace && input.trace.length
+          ? `
       <section class="card">
         <h3>Trace Timeline</h3>
         <div class="trace">
@@ -258,7 +264,9 @@ export function generateReportHtml(input: ReportInput): string {
             .join('')}
         </div>
       </section>
-      ` : ''}
+      `
+          : ''
+      }
     </div>
     <script>
       window.__AGENTCI_DATA__ = ${data};

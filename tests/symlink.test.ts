@@ -28,10 +28,7 @@ describe('symlink attack detection', () => {
     const symlinkPath = path.join(workspaceDir, 'evil-link');
     fs.symlinkSync(outsideDir, symlinkPath);
 
-    const result = resolvePathBestEffort(
-      path.join(workspaceDir, 'evil-link', 'secret.txt'),
-      workspaceDir,
-    );
+    const result = resolvePathBestEffort(path.join(workspaceDir, 'evil-link', 'secret.txt'), workspaceDir);
     expect(result.isSymlinkEscape).toBe(true);
   });
 
@@ -44,10 +41,7 @@ describe('symlink attack detection', () => {
     const linkPath = path.join(workspaceDir, 'link-to-src');
     fs.symlinkSync(subDir, linkPath);
 
-    const result = resolvePathBestEffort(
-      path.join(workspaceDir, 'link-to-src', 'index.ts'),
-      workspaceDir,
-    );
+    const result = resolvePathBestEffort(path.join(workspaceDir, 'link-to-src', 'index.ts'), workspaceDir);
     expect(result.isSymlinkEscape).toBe(false);
     expect(result.isWorkspaceLocal).toBe(true);
   });
@@ -62,10 +56,7 @@ describe('symlink attack detection', () => {
   });
 
   it('detects parent directory escape via ..', () => {
-    const result = resolvePathBestEffort(
-      path.join(workspaceDir, '..', '..', 'etc', 'passwd'),
-      workspaceDir,
-    );
+    const result = resolvePathBestEffort(path.join(workspaceDir, '..', '..', 'etc', 'passwd'), workspaceDir);
     expect(result.isWorkspaceLocal).toBe(false);
   });
 

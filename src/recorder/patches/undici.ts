@@ -15,17 +15,11 @@ function buildEvent(ctx: RecorderContext, data: EffectEventData): TraceEvent {
     timestamp: now(),
     run_id: ctx.runId,
     type: 'effect',
-    data
+    data,
   };
 }
 
-function recordNet(
-  ctx: RecorderContext,
-  protocol: 'http' | 'https',
-  host: string,
-  method: string,
-  port?: number
-) {
+function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: string, method: string, port?: number) {
   try {
     const data: EffectEventData = {
       category: 'net_outbound',
@@ -35,8 +29,8 @@ function recordNet(
         host_etld_plus_1: toEtldPlus1(host),
         method,
         protocol,
-        port
-      }
+        port,
+      },
     };
     ctx.writer.write(buildEvent(ctx, data));
     enforceEffect(ctx, data);
@@ -45,7 +39,10 @@ function recordNet(
   }
 }
 
-function extractFromUrl(input: any, method?: string): { host: string; protocol: 'http' | 'https'; port?: number; method: string } | null {
+function extractFromUrl(
+  input: any,
+  method?: string,
+): { host: string; protocol: 'http' | 'https'; port?: number; method: string } | null {
   try {
     if (typeof input === 'string') {
       const url = new URL(input);
@@ -53,7 +50,7 @@ function extractFromUrl(input: any, method?: string): { host: string; protocol: 
         host: url.hostname,
         protocol: url.protocol === 'https:' ? 'https' : 'http',
         port: url.port ? Number(url.port) : undefined,
-        method: method || 'GET'
+        method: method || 'GET',
       };
     }
     if (input instanceof URL) {
@@ -61,7 +58,7 @@ function extractFromUrl(input: any, method?: string): { host: string; protocol: 
         host: input.hostname,
         protocol: input.protocol === 'https:' ? 'https' : 'http',
         port: input.port ? Number(input.port) : undefined,
-        method: method || 'GET'
+        method: method || 'GET',
       };
     }
   } catch {

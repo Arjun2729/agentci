@@ -3,7 +3,7 @@ import {
   validatePolicyConfig,
   safeParsePolicyConfig,
   validateTraceEvent,
-  validateEffectSignature
+  validateEffectSignature,
 } from '../src/core/schema';
 
 describe('schema validation', () => {
@@ -31,8 +31,8 @@ describe('schema validation', () => {
             block_ports: [],
           },
           exec: { allow_commands: ['node'], block_commands: ['rm'], enforce_allowlist: true },
-          sensitive: { block_env: ['AWS_SECRET_ACCESS_KEY'], block_file_globs: ['~/.ssh/**'] }
-        }
+          sensitive: { block_env: ['AWS_SECRET_ACCESS_KEY'], block_file_globs: ['~/.ssh/**'] },
+        },
       };
       expect(() => validatePolicyConfig(valid)).not.toThrow();
     });
@@ -59,10 +59,18 @@ describe('schema validation', () => {
         redaction: { redact_paths: [], redact_urls: [], hash_values: false },
         policy: {
           filesystem: { allow_writes: 'not-array', block_writes: [] },
-          network: { allow_etld_plus_1: [], allow_hosts: [], enforce_allowlist: true, allow_protocols: [], block_protocols: [], allow_ports: [], block_ports: [] },
+          network: {
+            allow_etld_plus_1: [],
+            allow_hosts: [],
+            enforce_allowlist: true,
+            allow_protocols: [],
+            block_protocols: [],
+            allow_ports: [],
+            block_ports: [],
+          },
           exec: { allow_commands: [], block_commands: [], enforce_allowlist: true },
-          sensitive: { block_env: [], block_file_globs: [] }
-        }
+          sensitive: { block_env: [], block_file_globs: [] },
+        },
       };
       const result = safeParsePolicyConfig(invalid);
       expect(result.success).toBe(false);
@@ -81,10 +89,18 @@ describe('schema validation', () => {
         redaction: { redact_paths: [], redact_urls: [], hash_values: false },
         policy: {
           filesystem: { allow_writes: [123], block_writes: [] },
-          network: { allow_etld_plus_1: [], allow_hosts: [], enforce_allowlist: true, allow_protocols: [], block_protocols: [], allow_ports: [], block_ports: [] },
+          network: {
+            allow_etld_plus_1: [],
+            allow_hosts: [],
+            enforce_allowlist: true,
+            allow_protocols: [],
+            block_protocols: [],
+            allow_ports: [],
+            block_ports: [],
+          },
           exec: { allow_commands: [], block_commands: [], enforce_allowlist: true },
-          sensitive: { block_env: [], block_file_globs: [] }
-        }
+          sensitive: { block_env: [], block_file_globs: [] },
+        },
       };
       const result = safeParsePolicyConfig(invalid);
       expect(result.success).toBe(false);
@@ -101,7 +117,7 @@ describe('schema validation', () => {
         timestamp: Date.now(),
         run_id: 'run-1',
         type: 'lifecycle',
-        data: { stage: 'start' }
+        data: { stage: 'start' },
       };
       expect(() => validateTraceEvent(valid)).not.toThrow();
     });
@@ -112,7 +128,7 @@ describe('schema validation', () => {
         timestamp: Date.now(),
         run_id: 'run-1',
         type: 'invalid_type',
-        data: {}
+        data: {},
       };
       expect(() => validateTraceEvent(invalid)).toThrow();
     });
@@ -128,7 +144,7 @@ describe('schema validation', () => {
           platform: 'darwin-arm64',
           adapter: 'node-hook',
           scenario_id: 'default',
-          node_version: 'v18.17.0'
+          node_version: 'v18.17.0',
         },
         effects: {
           fs_writes: ['file.txt'],
@@ -140,8 +156,8 @@ describe('schema validation', () => {
           net_ports: [],
           exec_commands: [],
           exec_argv: [],
-          sensitive_keys_accessed: []
-        }
+          sensitive_keys_accessed: [],
+        },
       };
       expect(() => validateEffectSignature(valid)).not.toThrow();
     });
@@ -155,7 +171,7 @@ describe('schema validation', () => {
           platform: 'darwin-arm64',
           adapter: 'unknown-adapter',
           scenario_id: 'default',
-          node_version: 'v18.17.0'
+          node_version: 'v18.17.0',
         },
         effects: {
           fs_writes: [],
@@ -167,8 +183,8 @@ describe('schema validation', () => {
           net_ports: [],
           exec_commands: [],
           exec_argv: [],
-          sensitive_keys_accessed: []
-        }
+          sensitive_keys_accessed: [],
+        },
       };
       expect(() => validateEffectSignature(invalid)).toThrow();
     });

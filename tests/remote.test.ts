@@ -28,13 +28,13 @@ function createTestJwt(payload: Record<string, unknown>): string {
   return `${header}.${body}.${signature}`;
 }
 
-function httpRequest(
-  options: http.RequestOptions & { body?: string },
-): Promise<{ status: number; body: string }> {
+function httpRequest(options: http.RequestOptions & { body?: string }): Promise<{ status: number; body: string }> {
   return new Promise((resolve, reject) => {
     const req = http.request(options, (res) => {
       let data = '';
-      res.on('data', (chunk: Buffer) => { data += chunk.toString(); });
+      res.on('data', (chunk: Buffer) => {
+        data += chunk.toString();
+      });
       res.on('end', () => resolve({ status: res.statusCode || 0, body: data }));
     });
     req.on('error', reject);

@@ -17,7 +17,7 @@ function buildEvent(ctx: RecorderContext, data: EffectEventData): TraceEvent {
     timestamp: now(),
     run_id: ctx.runId,
     type: 'effect',
-    data
+    data,
   };
 }
 
@@ -79,8 +79,8 @@ function recordNet(ctx: RecorderContext, protocol: 'http' | 'https', host: strin
         host_etld_plus_1: toEtldPlus1(host),
         method,
         protocol,
-        port
-      }
+        port,
+      },
     };
     ctx.writer.write(buildEvent(ctx, data));
     enforceEffect(ctx, data);

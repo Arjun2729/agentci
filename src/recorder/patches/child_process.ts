@@ -16,7 +16,7 @@ function buildEvent(ctx: RecorderContext, data: EffectEventData): TraceEvent {
     timestamp: now(),
     run_id: ctx.runId,
     type: 'effect',
-    data
+    data,
   };
 }
 
@@ -28,8 +28,8 @@ function recordExec(ctx: RecorderContext, command: string, args: string[]): void
       kind: 'observed',
       exec: {
         command_raw: command,
-        argv_normalized: normalized.argv
-      }
+        argv_normalized: normalized.argv,
+      },
     };
     ctx.writer.write(buildEvent(ctx, data));
     enforceEffect(ctx, data);
@@ -46,14 +46,18 @@ export function patchChildProcess(ctx: RecorderContext): void {
     fork: childProcess.fork,
     execSync: childProcess.execSync,
     spawnSync: childProcess.spawnSync,
-    execFileSync: childProcess.execFileSync
+    execFileSync: childProcess.execFileSync,
   };
 
   childProcess.spawn = function (command: any, args?: any, options?: any) {
     if (!ctx.state.bypass) {
       try {
         const argv = Array.isArray(args) ? args : [];
-        recordExec(ctx, String(command), argv.map((arg) => String(arg)));
+        recordExec(
+          ctx,
+          String(command),
+          argv.map((arg) => String(arg)),
+        );
       } catch (err) {
         logger.debug('exec-patch', `Failed to record spawn for ${command}`, { error: String(err) });
       }
@@ -71,7 +75,11 @@ export function patchChildProcess(ctx: RecorderContext): void {
   childProcess.execFile = function (file: any, args?: any, options?: any, callback?: any) {
     if (!ctx.state.bypass) {
       const argv = Array.isArray(args) ? args : [];
-      recordExec(ctx, String(file), argv.map((arg) => String(arg)));
+      recordExec(
+        ctx,
+        String(file),
+        argv.map((arg) => String(arg)),
+      );
     }
     return original.execFile(file, args as any, options as any, callback as any);
   } as typeof childProcess.execFile;
@@ -79,7 +87,11 @@ export function patchChildProcess(ctx: RecorderContext): void {
   childProcess.fork = function (modulePath: any, args?: any, options?: any) {
     if (!ctx.state.bypass) {
       const argv = Array.isArray(args) ? args : [];
-      recordExec(ctx, String(modulePath), argv.map((arg) => String(arg)));
+      recordExec(
+        ctx,
+        String(modulePath),
+        argv.map((arg) => String(arg)),
+      );
     }
     return original.fork(modulePath, args as any, options as any);
   } as typeof childProcess.fork;
@@ -94,7 +106,11 @@ export function patchChildProcess(ctx: RecorderContext): void {
   childProcess.spawnSync = function (command: any, args?: any, options?: any) {
     if (!ctx.state.bypass) {
       const argv = Array.isArray(args) ? args : [];
-      recordExec(ctx, String(command), argv.map((arg) => String(arg)));
+      recordExec(
+        ctx,
+        String(command),
+        argv.map((arg) => String(arg)),
+      );
     }
     return original.spawnSync(command, args as any, options as any);
   } as typeof childProcess.spawnSync;
@@ -102,7 +118,11 @@ export function patchChildProcess(ctx: RecorderContext): void {
   childProcess.execFileSync = function (file: any, args?: any, options?: any) {
     if (!ctx.state.bypass) {
       const argv = Array.isArray(args) ? args : [];
-      recordExec(ctx, String(file), argv.map((arg) => String(arg)));
+      recordExec(
+        ctx,
+        String(file),
+        argv.map((arg) => String(arg)),
+      );
     }
     return original.execFileSync(file, args as any, options as any);
   } as typeof childProcess.execFileSync;

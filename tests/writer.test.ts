@@ -11,7 +11,7 @@ function makeEvent(id: string): TraceEvent {
     timestamp: Date.now(),
     run_id: 'test-run',
     type: 'lifecycle',
-    data: { stage: 'start' }
+    data: { stage: 'start' },
   };
 }
 
@@ -37,11 +37,11 @@ describe('TraceWriter (buffered)', () => {
       originals: {
         appendFileSync: fs.appendFileSync,
         mkdirSync: fs.mkdirSync,
-        writeFileSync: fs.writeFileSync
+        writeFileSync: fs.writeFileSync,
       },
       state,
       bufferSize: 100, // large buffer so events stay buffered
-      flushIntervalMs: 60000 // long interval
+      flushIntervalMs: 60000, // long interval
     });
 
     writer.write(makeEvent('1'));
@@ -65,11 +65,11 @@ describe('TraceWriter (buffered)', () => {
       originals: {
         appendFileSync: fs.appendFileSync,
         mkdirSync: fs.mkdirSync,
-        writeFileSync: fs.writeFileSync
+        writeFileSync: fs.writeFileSync,
       },
       state,
       bufferSize: 3,
-      flushIntervalMs: 60000
+      flushIntervalMs: 60000,
     });
 
     writer.write(makeEvent('1'));
@@ -99,11 +99,11 @@ describe('TraceWriter (buffered)', () => {
       originals: {
         appendFileSync: customAppend,
         mkdirSync: fs.mkdirSync,
-        writeFileSync: fs.writeFileSync
+        writeFileSync: fs.writeFileSync,
       },
       state,
       bufferSize: 1,
-      flushIntervalMs: 60000
+      flushIntervalMs: 60000,
     });
 
     writer.write(makeEvent('1'));
@@ -122,11 +122,11 @@ describe('TraceWriter (buffered)', () => {
       originals: {
         appendFileSync: fs.appendFileSync,
         mkdirSync: fs.mkdirSync,
-        writeFileSync: fs.writeFileSync
+        writeFileSync: fs.writeFileSync,
       },
       state,
       bufferSize: 100,
-      flushIntervalMs: 60000
+      flushIntervalMs: 60000,
     });
 
     writer.write(makeEvent('1'));

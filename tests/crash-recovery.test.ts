@@ -72,9 +72,7 @@ describe('process crash and error recovery', () => {
     `,
     );
 
-    const errorEvents = events.filter(
-      (e) => e.type === 'lifecycle' && e.data.stage === 'error',
-    );
+    const errorEvents = events.filter((e) => e.type === 'lifecycle' && e.data.stage === 'error');
     expect(errorEvents.length).toBeGreaterThanOrEqual(1);
     expect(errorEvents[0].metadata?.error).toContain('test crash');
   });

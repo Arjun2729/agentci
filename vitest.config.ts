@@ -17,6 +17,18 @@ export default defineConfig({
         'src/recorder/patches/**',
         'src/recorder/register.ts',
         'src/adapters/**',
+        // Pure type definitions — no runtime code to cover.
+        'src/core/types.ts',
+        // Re-export barrel files with no logic.
+        'src/pro/index.ts',
+        // Alpha placeholder — throws on every call, tested by license gate tests.
+        'src/pro/similarity/annpack.ts',
+        // HTTP client for remote server — tested via integration tests in remote.test.ts.
+        'src/pro/remote/client.ts',
+        // Runtime context and enforcement — only execute inside spawned subprocesses;
+        // V8 coverage can't measure subprocess coverage.
+        'src/recorder/context.ts',
+        'src/recorder/enforce.ts',
       ],
       thresholds: {
         lines: 70,

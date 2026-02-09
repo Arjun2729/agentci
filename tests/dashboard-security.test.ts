@@ -5,9 +5,7 @@ import { escapeHtml, isValidRunId, RateLimiter } from '../src/dashboard/server';
 
 describe('escapeHtml', () => {
   it('escapes HTML special characters', () => {
-    expect(escapeHtml('<script>alert("xss")</script>')).toBe(
-      '&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;',
-    );
+    expect(escapeHtml('<script>alert("xss")</script>')).toBe('&lt;script&gt;alert(&quot;xss&quot;)&lt;/script&gt;');
   });
 
   it('escapes ampersands', () => {
@@ -27,9 +25,7 @@ describe('escapeHtml', () => {
   });
 
   it('handles strings with multiple special chars', () => {
-    expect(escapeHtml('<a href="x">b & c</a>')).toBe(
-      '&lt;a href=&quot;x&quot;&gt;b &amp; c&lt;/a&gt;',
-    );
+    expect(escapeHtml('<a href="x">b & c</a>')).toBe('&lt;a href=&quot;x&quot;&gt;b &amp; c&lt;/a&gt;');
   });
 });
 

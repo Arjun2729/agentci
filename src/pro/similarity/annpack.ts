@@ -21,11 +21,7 @@ export function ensureAnnpack(agentciDir?: string): void {
  * Build an ANNPack index from all runs in the runs directory.
  * Placeholder — requires ANNPack CLI to be available.
  */
-export async function buildAnnpackIndex(
-  _runsDir: string,
-  _outPath: string,
-  agentciDir?: string,
-): Promise<void> {
+export async function buildAnnpackIndex(_runsDir: string, _outPath: string, agentciDir?: string): Promise<void> {
   ensureAnnpack(agentciDir);
 
   // ANNPack is alpha-stage. This is the integration point where we would:
@@ -35,7 +31,7 @@ export async function buildAnnpackIndex(
   // 4. Move the index to outPath
   throw new Error(
     'ANNPack integration is not yet available. ' +
-    'ANNPack is in alpha stage. Use `agentci similar` for brute-force search in the meantime.',
+      'ANNPack is in alpha stage. Use `agentci similar` for brute-force search in the meantime.',
   );
 }
 
@@ -52,7 +48,6 @@ export async function searchAnnpack(
   ensureAnnpack(agentciDir);
 
   throw new Error(
-    'ANNPack integration is not yet available. ' +
-    'Use `agentci similar` for brute-force search in the meantime.',
+    'ANNPack integration is not yet available. ' + 'Use `agentci similar` for brute-force search in the meantime.',
   );
 }

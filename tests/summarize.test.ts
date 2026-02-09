@@ -26,9 +26,9 @@ describe('summarize', () => {
           fs: {
             path_requested: 'workspace/output.txt',
             path_resolved: path.join(dir, 'workspace/output.txt'),
-            is_workspace_local: true
-          }
-        }
+            is_workspace_local: true,
+          },
+        },
       },
       {
         id: '2',
@@ -42,10 +42,10 @@ describe('summarize', () => {
             host_raw: 'api.weather.com',
             host_etld_plus_1: 'weather.com',
             method: 'GET',
-            protocol: 'https'
-          }
-        }
-      }
+            protocol: 'https',
+          },
+        },
+      },
     ];
     writeTrace(tracePath, events);
 
@@ -71,9 +71,9 @@ describe('summarize', () => {
           block_ports: [],
         },
         exec: { allow_commands: [], block_commands: [], enforce_allowlist: true },
-        sensitive: { block_env: [], block_file_globs: [] }
+        sensitive: { block_env: [], block_file_globs: [] },
       },
-      reporting: { explain_templates: true }
+      reporting: { explain_templates: true },
     };
 
     const signature = summarizeTrace(tracePath, config, '0.1.0');

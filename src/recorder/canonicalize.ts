@@ -11,7 +11,10 @@ export function toEtldPlus1(host: string): string {
   return trimmed;
 }
 
-export function resolvePathBestEffort(inputPath: string, workspaceRoot: string): {
+export function resolvePathBestEffort(
+  inputPath: string,
+  workspaceRoot: string,
+): {
   requestedAbs: string;
   resolvedAbs: string;
   isWorkspaceLocal: boolean;
@@ -21,16 +24,14 @@ export function resolvePathBestEffort(inputPath: string, workspaceRoot: string):
   const workspaceOriginal = path.resolve(workspaceRoot);
   const requestedAbs = path.resolve(process.cwd(), inputPath);
   const resolvedAbs = safeRealpath(requestedAbs) || requestedAbs;
-  const requestedInside =
-    isSubpath(requestedAbs, workspaceResolved) || isSubpath(requestedAbs, workspaceOriginal);
-  const resolvedInside =
-    isSubpath(resolvedAbs, workspaceResolved) || isSubpath(resolvedAbs, workspaceOriginal);
+  const requestedInside = isSubpath(requestedAbs, workspaceResolved) || isSubpath(requestedAbs, workspaceOriginal);
+  const resolvedInside = isSubpath(resolvedAbs, workspaceResolved) || isSubpath(resolvedAbs, workspaceOriginal);
   const isSymlinkEscape = requestedInside && !resolvedInside;
   return {
     requestedAbs,
     resolvedAbs,
     isWorkspaceLocal: resolvedInside || requestedInside,
-    isSymlinkEscape
+    isSymlinkEscape,
   };
 }
 

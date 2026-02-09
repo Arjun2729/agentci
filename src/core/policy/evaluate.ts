@@ -28,7 +28,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
         findings.push({
           severity: 'BLOCK',
           category: 'filesystem',
-          message: `Filesystem Violation (BLOCK): write resolved outside workspace root: ${writePath}`
+          message: `Filesystem Violation (BLOCK): write resolved outside workspace root: ${writePath}`,
         });
         continue;
       }
@@ -42,7 +42,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
       findings.push({
         severity: 'BLOCK',
         category: 'filesystem',
-        message: `Filesystem Violation (BLOCK): write blocked by policy: ${writePath}`
+        message: `Filesystem Violation (BLOCK): write blocked by policy: ${writePath}`,
       });
       continue;
     }
@@ -51,7 +51,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
       findings.push({
         severity: config.policy.filesystem.enforce_allowlist ? 'BLOCK' : 'WARN',
         category: 'filesystem',
-        message: `Filesystem Violation (${config.policy.filesystem.enforce_allowlist ? 'BLOCK' : 'WARN'}): write not in allow_writes: ${writePath}`
+        message: `Filesystem Violation (${config.policy.filesystem.enforce_allowlist ? 'BLOCK' : 'WARN'}): write not in allow_writes: ${writePath}`,
       });
     }
   }
@@ -67,7 +67,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
       findings.push({
         severity: 'BLOCK',
         category: 'network',
-        message: `Network Drift (BLOCK): Host '${host}' (eTLD+1: ${etld}) not allowed by policy.network.allow_*`
+        message: `Network Drift (BLOCK): Host '${host}' (eTLD+1: ${etld}) not allowed by policy.network.allow_*`,
       });
     }
   }
@@ -118,7 +118,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
       findings.push({
         severity: 'BLOCK',
         category: 'exec',
-        message: `Exec Violation (BLOCK): command '${cmd}' is blocked by policy.exec.block_commands`
+        message: `Exec Violation (BLOCK): command '${cmd}' is blocked by policy.exec.block_commands`,
       });
       continue;
     }
@@ -126,7 +126,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
       findings.push({
         severity: config.policy.exec.enforce_allowlist ? 'BLOCK' : 'WARN',
         category: 'exec',
-        message: `Exec Violation (${config.policy.exec.enforce_allowlist ? 'BLOCK' : 'WARN'}): command '${cmd}' not in allow_commands (not blocked)`
+        message: `Exec Violation (${config.policy.exec.enforce_allowlist ? 'BLOCK' : 'WARN'}): command '${cmd}' not in allow_commands (not blocked)`,
       });
     }
   }
@@ -136,7 +136,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
       findings.push({
         severity: 'BLOCK',
         category: 'sensitive',
-        message: `Sensitive Access (BLOCK): env var '${sensitive}' accessed`
+        message: `Sensitive Access (BLOCK): env var '${sensitive}' accessed`,
       });
       continue;
     }
@@ -146,7 +146,7 @@ export function evaluatePolicy(signature: EffectSignature, config: PolicyConfig)
       findings.push({
         severity: 'BLOCK',
         category: 'sensitive',
-        message: `Sensitive Access (BLOCK): file access '${sensitive}' matches blocked globs`
+        message: `Sensitive Access (BLOCK): file access '${sensitive}' matches blocked globs`,
       });
     }
   }

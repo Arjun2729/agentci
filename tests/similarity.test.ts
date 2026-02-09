@@ -141,15 +141,23 @@ describe('similarity - search', () => {
     });
 
     // Write some runs
-    writeRunSignature(runsDir, 'run-similar', makeSig({
-      fs_writes: ['src/index.ts'],
-      net_hosts: ['api.openai.com'],
-      exec_commands: ['npm', 'node'],
-    }));
-    writeRunSignature(runsDir, 'run-different', makeSig({
-      fs_writes: ['other.py'],
-      exec_commands: ['python'],
-    }));
+    writeRunSignature(
+      runsDir,
+      'run-similar',
+      makeSig({
+        fs_writes: ['src/index.ts'],
+        net_hosts: ['api.openai.com'],
+        exec_commands: ['npm', 'node'],
+      }),
+    );
+    writeRunSignature(
+      runsDir,
+      'run-different',
+      makeSig({
+        fs_writes: ['other.py'],
+        exec_commands: ['python'],
+      }),
+    );
 
     const results = findSimilarRuns(baseline, runsDir, 10);
     expect(results.length).toBe(2);
@@ -181,11 +189,15 @@ describe('similarity - anomaly detection', () => {
   it('flags outlier runs as anomalous', () => {
     // Create a cluster of similar runs
     for (let i = 0; i < 5; i++) {
-      writeRunSignature(runsDir, `normal-${i}`, makeSig({
-        fs_writes: ['src/index.ts', 'src/utils.ts'],
-        net_hosts: ['api.openai.com'],
-        exec_commands: ['npm'],
-      }));
+      writeRunSignature(
+        runsDir,
+        `normal-${i}`,
+        makeSig({
+          fs_writes: ['src/index.ts', 'src/utils.ts'],
+          net_hosts: ['api.openai.com'],
+          exec_commands: ['npm'],
+        }),
+      );
     }
 
     // Query with a very different signature
@@ -204,11 +216,15 @@ describe('similarity - anomaly detection', () => {
   it('passes for normal runs', () => {
     // Create similar runs
     for (let i = 0; i < 5; i++) {
-      writeRunSignature(runsDir, `normal-${i}`, makeSig({
-        fs_writes: ['src/index.ts'],
-        net_hosts: ['api.openai.com'],
-        exec_commands: ['npm'],
-      }));
+      writeRunSignature(
+        runsDir,
+        `normal-${i}`,
+        makeSig({
+          fs_writes: ['src/index.ts'],
+          net_hosts: ['api.openai.com'],
+          exec_commands: ['npm'],
+        }),
+      );
     }
 
     // Query with a very similar signature
